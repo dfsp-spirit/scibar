@@ -54,12 +54,25 @@ scibar::drawTitle(canvas, {20, 20, 160, 30}, "Temp (°C)", style);
 // Now 'canvas.data()' contains the fully composed, frame-bordered legend.
 ```
 
+Another example for a divergent colormap:
 
-## Implementation Notes
+```c++
+// ...
+// --- Divergent Example ---
+scibar::Style style = scibar::Style::defaultLight();
+scibar::Spec spec;
 
-* The Canvas Wrapper: Creating a struct Canvas { std::vector<uint32_t> buffer; int w, h; }; is a major win for API cleanliness.
-* Decoupling: By splitting Style (colors, frame settings) from Spec (range, ticks, LUT), we prevent parameter bloat. We can now change the "Dark Mode" theme without touching the data logic.
-* Manual Control: By using a std::vector of tick structs ({float value, std::string label}), we satisfy the need for scientific precision (e.g., handling $\pi$ or scientific notation) without needing a complex "nice number" algorithm on day one.
+spec.range = {-1.0f, 1.0f};          // Divergent range (centered on 0)
+spec.colormap = coolwarm_lut;        // Diverging LUT
+spec.midpoint = 0.0f;                // Forces 0 to map to the neutral color
+
+// The tick labels now clearly indicate the divergence
+spec.ticks = {{-1.0f, "-1"}, {0.0f, "0"}, {1.0f, "1"}};
+
+scibar::drawColorBar(canvas, {50, 50, 40, 500}, spec, style);
+scibar::drawTicks(canvas, {90, 50, 60, 500}, spec, style);
+```
+
 
 
 ## Dependencies
@@ -68,6 +81,6 @@ We vendor these, see `src/third_party`.
 
 * [canvas-ity](https://github.com/a-e-k/canvas_ity): For path/primitive drawing and gradients, ISC licence.
 
-* [stb_truetype.h](https://github.com/nothings/stb): For font rasterization and text rendering, public omain.
+* [stb_truetype.h](https://github.com/nothings/stb): For font rasterization and text rendering, public domain.
 
 * [catch2](https://github.com/catchorg/Catch2) (development only, in [cpp_tests/](./cpp_tests/)): For unit tests, BSL-1.0 license.
