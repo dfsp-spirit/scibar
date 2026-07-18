@@ -11,6 +11,8 @@ scibar does exactly one thing: it draws a rectangular colorbar, places ticks, an
 
  * We do: take your range, your colormap, and your labels, and return a pixel buffer ready for display.
 
+You can use the output as a texture for a quad in your renderer, or as an image to merge with your renderer's output image.
+
 ## The Pipeline
 
 scibar follows a "composition over configuration" philosophy. We don't try to guess your layout; we provide the drawing primitives, and you place them.
