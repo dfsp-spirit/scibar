@@ -1,7 +1,7 @@
 # scibar
 colorbars for the masses, in c++
 
-scibar is a header-only, single-purpose C++ library for rendering scientific colorbar legends. It is designed to be the "missing link" for lightweight renderers like scimesh, turning your raw data limits and colormaps into clear, informative visual legends.
+scibar is a header-only, single-purpose C++ library for rendering scientific colorbar legends. It is designed to be the "missing link" for lightweight renderers like [scimesh](https://github.com/dfsp-spirit/scimesh), turning your raw data limits and colormaps into clear, informative visual legends.
 
 ## Scope: The "One-Thing" Philosophy
 
