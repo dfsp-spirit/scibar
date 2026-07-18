@@ -1,5 +1,5 @@
 # scibar
-colorbars for the masses, in c++
+colorbars for the masses, in c++17
 
 scibar is a header-only, single-purpose C++ library for rendering scientific colorbar legends. It is designed to be the "missing link" for lightweight renderers like [scimesh](https://github.com/dfsp-spirit/scimesh), turning your raw data limits and colormaps into clear, informative visual legends.
 
@@ -41,80 +41,107 @@ scibar uses `stb_truetype.h` for font rasterization. scibar comes with Inter (sa
 * Flexibility: This allows you to use any font you like (e.g., a standard sans-serif for academic figures, or a monospace font for technical labels).
 
 
+
+
 ## Data Structures
 
 
 ```c++
-// Defines the data range, mapping, and specific markers
-struct Spec {
-    float range[2];             // {min, max} for the colormap
-    float midpoint;             // For diverging maps (e.g., 0.0)
-    std::vector<uint32_t> colormap; // 256 RGBA colors
+#include <string_view>
+#include <vector>
+#include <utility>
 
-    // Custom tick labels: {value, label_text}
-    std::vector<std::pair<float, std::string>> ticks;
+// 1. Opaque Font Wrapper
+struct Font {
+    const void* handle = nullptr; // Internal pointer to font engine
+    float size = 14.0f;
 };
 
-// Defines the visual appearance and font configuration
+// 2. Data Specification
+struct Spec {
+    float range[2];
+    float midpoint = 0.0f;
+
+    // C++17 compatible "span": pointer and size
+    const uint32_t* colormap = nullptr;
+    size_t colormap_size = 0;
+
+    // Use string_view to avoid allocations for label text
+    std::vector<std::pair<float, std::string_view>> ticks;
+};
+
+// 3. Visual Style
 struct Style {
-    bool showFrame = true;      // Draw a frame around the colorbar
+    bool showFrame = true;
     uint32_t frameColor = 0xFF000000;
     uint32_t tickColor = 0xFF000000;
     uint32_t textColor = 0xFF000000;
 
-    // Font configuration (must be initialized by the user)
-    const stbtt_fontinfo* font;
-    float fontSize = 14.0f;
+    Font font;
 
-    // Factory methods for quick setup
     static Style defaultLight();
     static Style defaultDark();
 };
+
+// 4. Canvas Wrapper (C++17 compatible)
+struct Canvas {
+    uint32_t* pixels;
+    int width;
+    int height;
+
+    Canvas(uint32_t* data, int w, int h)
+        : pixels(data), width(w), height(h) {}
+
+    // Helpful helper for the implementation
+    size_t size() const { return static_cast<size_t>(width) * height; }
+};
 ```
+
+
+
 
 ## API Example
 
 This design uses a Canvas wrapper to clean up function calls and separates Style (theme/colors) from Spec (data/range).
 
+
+### High-level API Example
+
 ```c++
 #include "scibar.hpp"
 
-// 1. Prepare your canvas
-scibar::Canvas canvas(200, 600); // Manages buffer and dimensions
-
-// 2. Define style and data spec
+// Setup
+uint32_t my_buffer[200 * 600]; // Existing buffer from your engine, packed RGBA pixels
+scibar::Canvas canvas(my_buffer, 200, 600);
+scibar::Spec spec = { {0.0f, 100.0f}, viridis_lut, {{0, "0"}, {100, "100"}} };
 scibar::Style style = scibar::Style::defaultDark();
-scibar::Spec spec;
-spec.range = {0.0f, 100.0f};      // Data range
-spec.colormap = viridis_lut;      // std::vector<uint32_t> (RGBA)
-spec.ticks = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
 
-// 3. Compose: Primitive functions take a rect {x, y, w, h}
-// All functions operate directly on the canvas buffer
-scibar::drawColorBar(canvas, {50, 50, 40, 500}, spec, style);
-scibar::drawTicks(canvas, {90, 50, 60, 500}, spec, style);
-scibar::drawTitle(canvas, {20, 20, 160, 30}, "Temp (°C)", style);
-
-// Now 'canvas.data()' contains the fully composed, frame-bordered legend.
+// The "Smart" API: One function call, no math required.
+// Internal logic handles positioning/spacing automatically.
+scibar::drawLegend(canvas, spec, style);
 ```
 
-Another example for a divergent colormap:
+### Low-level API example
 
 ```c++
-// ...
-// --- Divergent Example ---
-scibar::Style style = scibar::Style::defaultLight();
-scibar::Spec spec;
+#include "scibar.hpp"
 
-spec.range = {-1.0f, 1.0f};          // Divergent range (centered on 0)
-spec.colormap = coolwarm_lut;        // Diverging LUT
-spec.midpoint = 0.0f;                // Forces 0 to map to the neutral color
+uint32_t my_buffer[200 * 600]; // Existing buffer from your engine, packed RGBA pixels
+scibar::Canvas canvas(my_buffer, 200, 600);
+scibar::Spec spec = { {0.0f, 100.0f}, viridis_lut, {{0, "0"}, {100, "100"}} };
+scibar::Style style = scibar::Style::defaultDark();
 
-// The tick labels now clearly indicate the divergence
-spec.ticks = {{-1.0f, "-1"}, {0.0f, "0"}, {1.0f, "1"}};
+// Manual layout: User has full control over where every piece goes.
+// You can even leave gaps or overlay other UI elements.
 
+// 1. Draw the bar at a specific location
 scibar::drawColorBar(canvas, {50, 50, 40, 500}, spec, style);
-scibar::drawTicks(canvas, {90, 50, 60, 500}, spec, style);
+
+// 2. Draw ticks on the left side of the bar
+scibar::drawTicks(canvas, {10, 50, 30, 500}, spec, style);
+
+// 3. Draw a custom title at the top
+scibar::drawTitle(canvas, {50, 10, 100, 30}, "Activation (μV)", style);
 ```
 
 
