@@ -30,11 +30,13 @@ scibar follows a "composition over configuration" philosophy. Rather than a "bla
 
 ## Font Handling
 
-scibar uses `stb_truetype.h` for font rasterization. To minimize dependencies and keep the library portable, scibar does not ship with built-in fonts.
+scibar uses `stb_truetype.h` for font rasterization. scibar comes with Inter (sans-serif) embedded, ensuring your legends are publication-ready out of the box.
 
-* Setup: Load your .ttf file in your application using stbtt_InitFont().
+* Included Font: Inter-Regular.ttf (embedded as a byte array).
 
-* Usage: Pass the resulting stbtt_fontinfo pointer into your scibar::Style object.
+* Customization / Flexibility: You can override the default font by passing your own stbtt_fontinfo pointer via the Style struct. This allows you to use any font you like (e.g., a standard sans-serif for academic figures, or a monospace font for technical labels).
+
+* Why Inter? It is an open-source, journal-approved typeface optimized for legibility in data visualizations, ensuring your tick labels and titles remain crisp even when reduced for a manuscript.
 
 * Flexibility: This allows you to use any font you like (e.g., a standard sans-serif for academic figures, or a monospace font for technical labels).
 
