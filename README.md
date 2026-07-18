@@ -39,8 +39,8 @@ std::vector<uint32_t> canvas(200 * 600, 0x00000000);
 // 2. Define global style and data state
 // We use a dark theme preset and then tweak the colormap
 scibar::Config config = scibar::Config::defaultDark();
-config.range = {0.0f, 100.0f};
-config.colormap = viridis_lut;
+config.range = {0.0f, 100.0f};  // The data range being visualized
+config.colormap = viridis_lut;  // std::vector<u_int32t> of RGBA colors
 
 // 3. Compose your legend
 // Rect struct format: { x, y, width, height }
