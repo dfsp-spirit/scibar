@@ -30,7 +30,7 @@ scibar follows a "composition over configuration" philosophy. Rather than a "bla
 
 ## Font Handling
 
-scibar uses `stb_truetype.h` for font rasterization. scibar comes with Inter (sans-serif) embedded, ensuring your legends are publication-ready out of the box.
+scibar uses `stb_truetype.h` for font rasterization. scibar comes with Inter (sans-serif) embedded, ensuring you get clean raster legends suitable for scientific figures out of the box.
 
 * Included Font: Inter-Regular.ttf (embedded as a byte array).
 
@@ -116,6 +116,19 @@ spec.ticks = {{-1.0f, "-1"}, {0.0f, "0"}, {1.0f, "1"}};
 scibar::drawColorBar(canvas, {50, 50, 40, 500}, spec, style);
 scibar::drawTicks(canvas, {90, 50, 60, 500}, spec, style);
 ```
+
+
+## Integration (How to use it in your app)
+
+scibar is a single-header library. To integrate it:
+
+* Drop `scibar.hpp` into your project.
+
+* In exactly one `.cpp` file, define `#define SCIBAR_IMPLEMENTATION` before including the header.
+
+* Use the library everywhere else normally.
+
+This provides the simplicity of a header-only library while keeping your project's compile times fast, as the heavy rendering logic is only compiled once.
 
 
 
