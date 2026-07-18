@@ -51,6 +51,14 @@ scibar uses `stb_truetype.h` for font rasterization. scibar comes with Inter (sa
 #include <vector>
 #include <utility>
 
+enum class ScaleType { Linear, Logarithmic, Categorical };
+
+struct Scale {
+    ScaleType type = ScaleType::Linear;
+    float range[2] = {0.0f, 1.0f};
+    float midpoint = 0.0f; // Useful for Diverging/Log shifts
+};
+
 // 1. Opaque Font Wrapper
 struct Font {
     const void* handle = nullptr; // Internal pointer to font engine
@@ -59,16 +67,16 @@ struct Font {
 
 // 2. Data Specification
 struct Spec {
-    float range[2];
-    float midpoint = 0.0f;
+    Scale scale;
 
-    // C++17 compatible "span": pointer and size
     const uint32_t* colormap = nullptr;
+    std::string_view title;
     size_t colormap_size = 0;
 
-    // Use string_view to avoid allocations for label text
+    // Annotations
     std::vector<std::pair<float, std::string_view>> ticks;
 };
+
 
 // 3. Visual Style
 struct Style {
@@ -110,10 +118,21 @@ This design uses a Canvas wrapper to clean up function calls and separates Style
 ```c++
 #include "scibar.hpp"
 
+
 // Setup
 uint32_t my_buffer[200 * 600]; // Existing buffer from your engine, packed RGBA pixels
 scibar::Canvas canvas(my_buffer, 200, 600);
-scibar::Spec spec = { {0.0f, 100.0f}, viridis_lut, {{0, "0"}, {100, "100"}} };
+
+
+
+scibar::Spec spec;
+spec.scale.type = scibar::ScaleType::Logarithmic;
+spec.scale.range[0] = 1.0f;
+spec.scale.range[1] = 1000.0f;
+
+spec.colormap = my_lut.data();
+spec.colormap_size = my_lut.size();
+
 scibar::Style style = scibar::Style::defaultDark();
 
 // The "Smart" API: One function call, no math required.
