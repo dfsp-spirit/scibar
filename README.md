@@ -32,21 +32,31 @@ Instead of one "black box" function, you have granular control:
 ```c++
 #include "scibar.hpp"
 
-// 1. Prepare your canvas (e.g., 200x600)
+// 1. Prepare your canvas (e.g., 200x600 pixels)
+// Using 0x00000000 for a transparent background
 std::vector<uint32_t> canvas(200 * 600, 0x00000000);
 
-// 2. Define global state
-scibar::Config config;
+// 2. Define global style and data state
+// We use a dark theme preset and then tweak the colormap
+scibar::Config config = scibar::Config::defaultDark();
 config.range = {0.0f, 100.0f};
-config.colormap = viridis_lut; // std::vector<uint32_t>, defining 256 RBGA colors
+config.colormap = viridis_lut;
 
-// 3. Compose your legend (User controls placement/padding)
-// These functions operate directly on the canvas buffer
+// 3. Compose your legend
+// Rect struct format: { x, y, width, height }
+// All coordinates are relative to the top-left of the canvas.
+
+// The draw functions use the style/colors defined in 'config'
+// drawColorBar automatically handles the frame if config.showFrame is true
 scibar::drawColorBar(canvas, 200, 600, {50, 50, 40, 500}, config);
+
+// Draw ticks at the edge of the bar
 scibar::drawTicks(canvas, 200, 600, {90, 50, 60, 500}, config);
+
+// Draw the title (using the text color defined in config)
 scibar::drawTitle(canvas, 200, 600, {20, 20, 160, 30}, "Temp (°C)");
 
-// Now 'canvas' contains the fully composed legend.
+// Now 'canvas' contains the fully composed, frame-bordered legend.
 ```
 
 ## Dependencies
