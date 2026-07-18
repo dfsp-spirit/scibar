@@ -28,6 +28,48 @@ scibar follows a "composition over configuration" philosophy. Rather than a "bla
 * Output: Retrieve the pixel array, ready for texture upload or image export.
 
 
+## Font Handling
+
+scibar uses `stb_truetype.h` for font rasterization. To minimize dependencies and keep the library portable, scibar does not ship with built-in fonts.
+
+* Setup: Load your .ttf file in your application using stbtt_InitFont().
+
+* Usage: Pass the resulting stbtt_fontinfo pointer into your scibar::Style object.
+
+* Flexibility: This allows you to use any font you like (e.g., a standard sans-serif for academic figures, or a monospace font for technical labels).
+
+
+## Data Structures
+
+
+```c++
+// Defines the data range, mapping, and specific markers
+struct Spec {
+    float range[2];             // {min, max} for the colormap
+    float midpoint;             // For diverging maps (e.g., 0.0)
+    std::vector<uint32_t> colormap; // 256 RGBA colors
+
+    // Custom tick labels: {value, label_text}
+    std::vector<std::pair<float, std::string>> ticks;
+};
+
+// Defines the visual appearance and font configuration
+struct Style {
+    bool showFrame = true;      // Draw a frame around the colorbar
+    uint32_t frameColor = 0xFF000000;
+    uint32_t tickColor = 0xFF000000;
+    uint32_t textColor = 0xFF000000;
+
+    // Font configuration (must be initialized by the user)
+    const stbtt_fontinfo* font;
+    float fontSize = 14.0f;
+
+    // Factory methods for quick setup
+    static Style defaultLight();
+    static Style defaultDark();
+};
+```
+
 ## API Example
 
 This design uses a Canvas wrapper to clean up function calls and separates Style (theme/colors) from Spec (data/range).
