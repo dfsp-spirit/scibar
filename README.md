@@ -5,61 +5,59 @@ scibar is a header-only, single-purpose C++ library for rendering scientific col
 
 ## Scope: The "One-Thing" Philosophy
 
-scibar does exactly one thing: it draws a rectangular colorbar, places ticks, and renders a text title (e.g., "Temperature in °C").
+scibar is a lightweight, header-only C++ library for rendering scientific colorbar legends. It is designed to be the missing link between your raw scientific data and a polished visual presentation.
 
- * We do not: handle complex plots, axis labeling, data processing, or window management.
+    We do: Render colorbars, tick marks, and custom labels into an RGBA pixel buffer.
 
- * We do: take your range, your colormap, and your labels, and return a pixel buffer ready for display.
+    We do not: Perform data analysis, manage windowing, or provide complex charting frameworks.
 
-You can use the output as a texture for a quad in your renderer, or as an image to merge with your renderer's output image.
+    Design: scibar is backend-agnostic. Whether you are using OpenGL, Vulkan, or a software renderer, you simply overlay the resulting pixel buffer onto your scene.
 
 ## The Pipeline
 
-scibar follows a "composition over configuration" philosophy. We don't try to guess your layout; we provide the drawing primitives, and you place them.
+scibar follows a "composition over configuration" philosophy. Rather than a "black box" that guesses your layout, we provide specialized drawing primitives that you place exactly where they belong.
 
-Instead of one "black box" function, you have granular control:
+    Canvas Wrapper: Initialize a scibar::Canvas to manage your raw pixel buffer and dimensions.
 
+    Define Style & Spec: Separate your visual appearance (Style) from your data bounds and labels (Spec).
 
-* Define a Canvas: Initialize a raw RGBA pixel buffer of your desired output size.
+    Compose: Use primitive drawing functions to paint components onto the canvas at specific coordinates.
 
-* Compose: Call scibar primitive functions to draw components (the bar, the ticks, the title) onto that buffer at specific coordinates.
-
-* Rasterize: scibar uses lightweight primitives to draw shapes and fonts directly into your buffer.
-
-* Output: You are left with your modified pixel array, ready for GPU-texture upload or PNG export.
-
+    Output: Retrieve the pixel array, ready for texture upload or image export.
 
 ## API Example
+
+This design uses a Canvas wrapper to clean up function calls and separates Style (theme/colors) from Spec (data/range).
 
 ```c++
 #include "scibar.hpp"
 
-// 1. Prepare your canvas (e.g., 200x600 pixels)
-// Using 0x00000000 for a transparent background
-std::vector<uint32_t> canvas(200 * 600, 0x00000000);
+// 1. Prepare your canvas
+scibar::Canvas canvas(200, 600); // Manages buffer and dimensions
 
-// 2. Define global style and data state
-// We use a dark theme preset and then tweak the colormap
-scibar::Config config = scibar::Config::defaultDark();
-config.range = {0.0f, 100.0f};  // The data range being visualized
-config.colormap = viridis_lut;  // std::vector<u_int32t> of RGBA colors
+// 2. Define style and data spec
+scibar::Style style = scibar::Style::defaultDark();
+scibar::Spec spec;
+spec.range = {0.0f, 100.0f};      // Data range
+spec.colormap = viridis_lut;      // std::vector<uint32_t> (RGBA)
+spec.ticks = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
 
-// 3. Compose your legend
-// Rect struct format: { x, y, width, height }
-// All coordinates are relative to the top-left of the canvas.
+// 3. Compose: Primitive functions take a rect {x, y, w, h}
+// All functions operate directly on the canvas buffer
+scibar::drawColorBar(canvas, {50, 50, 40, 500}, spec, style);
+scibar::drawTicks(canvas, {90, 50, 60, 500}, spec, style);
+scibar::drawTitle(canvas, {20, 20, 160, 30}, "Temp (°C)", style);
 
-// The draw functions use the style/colors defined in 'config'
-// drawColorBar automatically handles the frame if config.showFrame is true
-scibar::drawColorBar(canvas, 200, 600, {50, 50, 40, 500}, config);
-
-// Draw ticks at the edge of the bar
-scibar::drawTicks(canvas, 200, 600, {90, 50, 60, 500}, config);
-
-// Draw the title (using the text color defined in config)
-scibar::drawTitle(canvas, 200, 600, {20, 20, 160, 30}, "Temp (°C)");
-
-// Now 'canvas' contains the fully composed, frame-bordered legend.
+// Now 'canvas.data()' contains the fully composed, frame-bordered legend.
 ```
+
+
+## Implementation Notes
+
+* The Canvas Wrapper: Creating a struct Canvas { std::vector<uint32_t> buffer; int w, h; }; is a major win for API cleanliness.
+* Decoupling: By splitting Style (colors, frame settings) from Spec (range, ticks, LUT), we prevent parameter bloat. We can now change the "Dark Mode" theme without touching the data logic.
+* Manual Control: By using a std::vector of tick structs ({float value, std::string label}), we satisfy the need for scientific precision (e.g., handling $\pi$ or scientific notation) without needing a complex "nice number" algorithm on day one.
+
 
 ## Dependencies
 
