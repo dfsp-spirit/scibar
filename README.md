@@ -3,27 +3,30 @@ colorbars for the masses, in c++
 
 scibar is a header-only, single-purpose C++ library for rendering scientific colorbar legends. It is designed to be the "missing link" for lightweight renderers like [scimesh](https://github.com/dfsp-spirit/scimesh), turning your raw data limits and colormaps into clear, informative visual legends.
 
+
 ## Scope: The "One-Thing" Philosophy
 
 scibar is a lightweight, header-only C++ library for rendering scientific colorbar legends. It is designed to be the missing link between your raw scientific data and a polished visual presentation.
 
-    We do: Render colorbars, tick marks, and custom labels into an RGBA pixel buffer.
+* We do: Render colorbars, tick marks, and custom labels into an RGBA pixel buffer.
 
-    We do not: Perform data analysis, manage windowing, or provide complex charting frameworks.
+* We do not: Perform data analysis, manage windowing, or provide complex charting frameworks.
 
-    Design: scibar is backend-agnostic. Whether you are using OpenGL, Vulkan, or a software renderer, you simply overlay the resulting pixel buffer onto your scene.
+Design: scibar is backend-agnostic. Whether you are using OpenGL, Vulkan, or a software renderer, you simply overlay the resulting pixel buffer onto your scene.
+
 
 ## The Pipeline
 
 scibar follows a "composition over configuration" philosophy. Rather than a "black box" that guesses your layout, we provide specialized drawing primitives that you place exactly where they belong.
 
-    Canvas Wrapper: Initialize a scibar::Canvas to manage your raw pixel buffer and dimensions.
+* Canvas Wrapper: Initialize a scibar::Canvas to manage your raw pixel buffer and dimensions.
 
-    Define Style & Spec: Separate your visual appearance (Style) from your data bounds and labels (Spec).
+* Define Style & Spec: Separate your visual appearance (Style) from your data bounds and labels (Spec).
 
-    Compose: Use primitive drawing functions to paint components onto the canvas at specific coordinates.
+* Compose: Use primitive drawing functions to paint components onto the canvas at specific coordinates.
 
-    Output: Retrieve the pixel array, ready for texture upload or image export.
+* Output: Retrieve the pixel array, ready for texture upload or image export.
+
 
 ## API Example
 
