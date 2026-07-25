@@ -262,13 +262,18 @@ out << svg_data;
 
 
 ## Additional details 
-* return layout metrics on high level function calls, eg: struct LayoutResult {
+* return layout metrics on high level function calls, eg:
+```cpp
+ struct LayoutResult {
     Rect totalBoundingBox;   // Outer bounds including title and labels
     Rect colorbarBoundingBox;// Bounds of just the gradient bar
     int generatedTickCount;
 };
 
 LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style = Style::defaultLight());
+```
+
+Same for exportToSVG.
 
 * specify exactly the text alignment relative to ticks for vertical Vs horizontal colorbars 
 
