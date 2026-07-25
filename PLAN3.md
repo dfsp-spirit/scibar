@@ -259,3 +259,19 @@ out << svg_data;
 * **[canvas-ity](https://github.com/a-e-k/canvas_ity):** Immediate-mode 2D rasterization library (ISC License).
 * **[stb_truetype.h](https://github.com/nothings/stb):** Font loading and glyph rasterization (Public Domain / MIT).
 * **[Catch2](https://github.com/catchorg/Catch2):** Unit testing framework, development only (BSL-1.0 License).
+
+
+## Additional details 
+* return layout metrics on high level function calls, eg: struct LayoutResult {
+    Rect totalBoundingBox;   // Outer bounds including title and labels
+    Rect colorbarBoundingBox;// Bounds of just the gradient bar
+    int generatedTickCount;
+};
+
+LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style = Style::defaultLight());
+
+* specify exactly the text alignment relative to ticks for vertical Vs horizontal colorbars 
+
+* specify SVG drawing method for colorbars of different types,to avoid artefacts. rectangle, linear gradient, stop, ...
+
+* maybe avoid memory copy on init, in case people call this in some real-time rendering loop?
