@@ -280,3 +280,5 @@ Same for exportToSVG.
 * specify SVG drawing method for colorbars of different types,to avoid artefacts. rectangle, linear gradient, stop, ...
 
 * maybe avoid memory copy on init, in case people call this in some real-time rendering loop?
+
+* provide some convenience overloads for functions, likea draw legend version that does not require style and defaults to bright mode 
