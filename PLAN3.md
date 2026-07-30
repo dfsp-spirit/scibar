@@ -99,6 +99,15 @@ struct Font {
     float size = 14.0f;
 };
 
+// Font vertical metrics and glyph-level measurements.
+// Exposed so users can build custom layout on top of scibar
+// (e.g., superscript placement, cursor tracking, kerning-aware character spacing).
+struct FontMetrics {
+    float ascender;     // Distance from baseline to top of tallest glyph
+    float descender;    // Distance from baseline to bottom of lowest glyph (negative)
+    float lineHeight;   // Recommended line spacing (ascender - descender + internal leading)
+};
+
 struct Tick {
     float value;
     std::string label; // Owning string avoids dangling view pointers
@@ -171,6 +180,13 @@ void drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Styl
 
 // Utility: measure text dimensions for manual layout calculations
 std::array<float, 2> measureText(const std::string& text, const Font& font);
+
+// Font metrics: vertical dimensions and per-glyph advance widths.
+// These are the primitives a real layout engine would call — scibar does not
+// do layout itself, but exposes these so users can build their own on top.
+FontMetrics fontMetrics(const Font& font);
+float textAdvance(const Font& font, const std::string& text, int upToIndex);
+float codepointAdvance(const Font& font, int leftCodepoint, int rightCodepoint);
 
 // Utility: generate sensible tick values via nice-numbers algorithm
 std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5);
@@ -259,6 +275,7 @@ out << svg_data;
 * **Default Embedded Font:** Includes **Inter-Regular.ttf** as an embedded byte array. Inter is an open-source, journal-approved typeface optimized for legibility in data visualizations.
 * **Custom Fonts:** Users can override the default font by supplying a pointer to their own loaded `stbtt_fontinfo` handle in `Style::font`.
 * **SVG Vector Text:** In SVG exports, text elements use standard CSS font family declarations (`font-family="Inter, sans-serif"`), ensuring crisp text rendering in browsers, Adobe Illustrator, Inkscape, and PDF renderers.
+* **Glyph-Level Metrics:** scibar exposes `fontMetrics()`, `textAdvance()`, and `codepointAdvance()` so users can perform per-glyph layout (superscripts, subscripts, custom cursor positioning, kerning-aware spacing) without reaching into stb_truetype internals directly. These are backend-agnostic — they return plain floats, not stb-specific types — keeping user code portable between pixel and SVG backends. scibar does NOT expose glyph bitmaps, glyph IDs, shaping, or line-breaking; those remain the domain of dedicated libraries.
 
 ---
 
