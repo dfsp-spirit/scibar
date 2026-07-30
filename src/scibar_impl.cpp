@@ -603,9 +603,13 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
 // SVG export
 // =========================================================================
 
-std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& options) {
+std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& options,
+                        Orientation orientation) {
     assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
     assert(options.totalWidth > 0 && options.totalHeight > 0 && "SVG dimensions must be positive");
+
+    const Rect& cb = options.colorbarBounds;
+    bool isVertical = (orientation == Orientation::Vertical);
 
     std::ostringstream svg;
     svg << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
@@ -625,25 +629,39 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
             << "preserveAspectRatio=\"none\" />\n";
     }
 
-    const Rect& cb = options.colorbarBounds;
-
-    // Colormap gradient definition
+    // Colormap
     if (spec.scale.type == ScaleType::Categorical) {
-        // Discrete blocks
-        float blockH = static_cast<float>(cb.height) / static_cast<float>(spec.colormap.size);
-        for (size_t i = 0; i < spec.colormap.size; ++i) {
-            const Color& c = spec.colormap.data[i];
-            float y0 = static_cast<float>(cb.y) + static_cast<float>(i) * blockH;
-            svg << "  <rect x=\"" << cb.x << "\" y=\"" << y0
-                << "\" width=\"" << cb.width << "\" height=\"" << blockH
-                << "\" fill=\"rgb(" << static_cast<int>(c.r) << ","
-                << static_cast<int>(c.g) << "," << static_cast<int>(c.b)
-                << ")\" shape-rendering=\"crispEdges\" />\n";
+        if (isVertical) {
+            float blockH = static_cast<float>(cb.height) / static_cast<float>(spec.colormap.size);
+            for (size_t i = 0; i < spec.colormap.size; ++i) {
+                const Color& c = spec.colormap.data[i];
+                float y0 = static_cast<float>(cb.y) + static_cast<float>(i) * blockH;
+                svg << "  <rect x=\"" << cb.x << "\" y=\"" << y0
+                    << "\" width=\"" << cb.width << "\" height=\"" << blockH
+                    << "\" fill=\"rgb(" << static_cast<int>(c.r) << ","
+                    << static_cast<int>(c.g) << "," << static_cast<int>(c.b)
+                    << ")\" shape-rendering=\"crispEdges\" />\n";
+            }
+        } else {
+            float blockW = static_cast<float>(cb.width) / static_cast<float>(spec.colormap.size);
+            for (size_t i = 0; i < spec.colormap.size; ++i) {
+                const Color& c = spec.colormap.data[i];
+                float x0 = static_cast<float>(cb.x) + static_cast<float>(i) * blockW;
+                svg << "  <rect x=\"" << x0 << "\" y=\"" << cb.y
+                    << "\" width=\"" << blockW << "\" height=\"" << cb.height
+                    << "\" fill=\"rgb(" << static_cast<int>(c.r) << ","
+                    << static_cast<int>(c.g) << "," << static_cast<int>(c.b)
+                    << ")\" shape-rendering=\"crispEdges\" />\n";
+            }
         }
     } else {
         // Continuous: linear gradient
         svg << "  <defs>\n";
-        svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">\n";
+        if (isVertical) {
+            svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">\n";
+        } else {
+            svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n";
+        }
         for (size_t i = 0; i < spec.colormap.size; ++i) {
             const Color& c = spec.colormap.data[i];
             float offset = (spec.colormap.size > 1)
@@ -695,38 +713,56 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                 fraction = (tick.value - spec.scale.min) / range;
             }
 
-            float y = static_cast<float>(cb.y + cb.height) -
-                      fraction * static_cast<float>(cb.height);
-
-            // Tick mark line
-            float tickStartX = static_cast<float>(cb.x + cb.width);
-            float tickEndX = tickStartX + style.tickLength;
-            svg << "  <line x1=\"" << tickStartX << "\" y1=\"" << y
-                << "\" x2=\"" << tickEndX << "\" y2=\"" << y
-                << "\" stroke=\"rgb("
-                << static_cast<int>(style.tickColor.r) << ","
-                << static_cast<int>(style.tickColor.g) << ","
-                << static_cast<int>(style.tickColor.b)
-                << ")\" stroke-width=\"1\" />\n";
-
-            // Tick label
-            float labelX = tickEndX + 3.0f;
-            svg << "  <text x=\"" << labelX << "\" y=\"" << y
-                << "\" font-family=\"Inter, sans-serif\" font-size=\""
-                << style.font.size
-                << "\" fill=\"rgb("
-                << static_cast<int>(style.textColor.r) << ","
-                << static_cast<int>(style.textColor.g) << ","
-                << static_cast<int>(style.textColor.b)
-                << ")\" text-anchor=\"start\" dominant-baseline=\"central\">"
-                << tick.label << "</text>\n";
+            if (isVertical) {
+                float y = static_cast<float>(cb.y + cb.height) -
+                          fraction * static_cast<float>(cb.height);
+                float tickStartX = static_cast<float>(cb.x + cb.width);
+                float tickEndX = tickStartX + style.tickLength;
+                svg << "  <line x1=\"" << tickStartX << "\" y1=\"" << y
+                    << "\" x2=\"" << tickEndX << "\" y2=\"" << y
+                    << "\" stroke=\"rgb("
+                    << static_cast<int>(style.tickColor.r) << ","
+                    << static_cast<int>(style.tickColor.g) << ","
+                    << static_cast<int>(style.tickColor.b)
+                    << ")\" stroke-width=\"1\" />\n";
+                float labelX = tickEndX + 3.0f;
+                svg << "  <text x=\"" << labelX << "\" y=\"" << y
+                    << "\" font-family=\"Inter, sans-serif\" font-size=\""
+                    << style.font.size << "\" fill=\"rgb("
+                    << static_cast<int>(style.textColor.r) << ","
+                    << static_cast<int>(style.textColor.g) << ","
+                    << static_cast<int>(style.textColor.b)
+                    << ")\" text-anchor=\"start\" dominant-baseline=\"central\">"
+                    << tick.label << "</text>\n";
+            } else {
+                float x = static_cast<float>(cb.x) +
+                          fraction * static_cast<float>(cb.width);
+                float tickStartY = static_cast<float>(cb.y + cb.height);
+                float tickEndY = tickStartY + style.tickLength;
+                svg << "  <line x1=\"" << x << "\" y1=\"" << tickStartY
+                    << "\" x2=\"" << x << "\" y2=\"" << tickEndY
+                    << "\" stroke=\"rgb("
+                    << static_cast<int>(style.tickColor.r) << ","
+                    << static_cast<int>(style.tickColor.g) << ","
+                    << static_cast<int>(style.tickColor.b)
+                    << ")\" stroke-width=\"1\" />\n";
+                float labelY = tickEndY + style.font.size + 2.0f;
+                svg << "  <text x=\"" << x << "\" y=\"" << labelY
+                    << "\" font-family=\"Inter, sans-serif\" font-size=\""
+                    << style.font.size << "\" fill=\"rgb("
+                    << static_cast<int>(style.textColor.r) << ","
+                    << static_cast<int>(style.textColor.g) << ","
+                    << static_cast<int>(style.textColor.b)
+                    << ")\" text-anchor=\"middle\" dominant-baseline=\"hanging\">"
+                    << tick.label << "</text>\n";
+            }
         }
     }
 
     // Title
     if (!spec.title.empty()) {
         int titleX = cb.x + cb.width / 2;
-        int titleY = cb.y - 10;
+        int titleY = isVertical ? (cb.y - 10) : (cb.y - 15);
         svg << "  <text x=\"" << titleX << "\" y=\"" << titleY
             << "\" font-family=\"Inter, sans-serif\" font-size=\""
             << style.font.size

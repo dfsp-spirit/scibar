@@ -170,7 +170,8 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec,
 // --- SVG export ---
 std::string exportToSVG(const Spec& spec,
                         const Style& style = Style::defaultLight(),
-                        const SVGOptions& options = {});
+                        const SVGOptions& options = {},
+                        Orientation orientation = Orientation::Vertical);
 
 } // namespace scibar
 

@@ -63,7 +63,8 @@ int main() {
     svgOpts.totalHeight = 650;
     svgOpts.colorbarBounds = {60, 50, 40, 500};
 
-    std::string svg = scibar::exportToSVG(spec, style, svgOpts);
+    std::string svg = scibar::exportToSVG(spec, style, svgOpts,
+                                        scibar::Orientation::Vertical);
 
     FILE* svgFile = fopen("colorbar.svg", "w");
     if (svgFile) {
