@@ -1,0 +1,78 @@
+// scibar example: viridis horizontal colorbar
+// Demonstrates high-level API with PNG + SVG output.
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+
+#include "../../src/scibar.hpp"
+#include "../../src/third_party/canvas_ity.hpp"
+#include "../../src/third_party/stb_truetype.h"
+#include "../../src/third_party/stb_image_write.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
+int main() {
+    // --- Load font ---
+    scibar::Font font = scibar::loadFont("../../../fonts/Inter-Regular.ttf", 14.0f);
+
+    // --- Setup canvas (vertical bar, portrait orientation) ---
+    const int W = 250, H = 600;
+    std::vector<uint32_t> buffer(static_cast<size_t>(W) * H, 0xFFFFFFFF); // white background
+    scibar::Canvas canvas{buffer.data(), W, H};
+
+    // --- Define data ---
+    auto viridisCmap = scibar::util::viridis(); // must be named — ColorMapView is non-owning
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 2.0f;
+    spec.scale.max  = 5.0f;
+    spec.title      = "Random Value";
+    spec.colormap   = viridisCmap;
+
+    // --- Style ---
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font = font;
+
+    // --- Draw ---
+    scibar::LayoutResult result = scibar::drawLegend(canvas, spec, style);
+
+    printf("Colorbar bounds: (%d,%d) %dx%d\n",
+           result.colorbarBoundingBox.x, result.colorbarBoundingBox.y,
+           result.colorbarBoundingBox.width, result.colorbarBoundingBox.height);
+    printf("Total bounds:    (%d,%d) %dx%d\n",
+           result.totalBoundingBox.x, result.totalBoundingBox.y,
+           result.totalBoundingBox.width, result.totalBoundingBox.height);
+    printf("Generated ticks: %d\n", result.generatedTickCount);
+
+    // --- Write PNG ---
+    // pixels[] is uint32_t in RGBA byte order (LSB=R on little-endian),
+    // which matches stbi_write_png's expected R,G,B,A layout.
+    int pngOk = stbi_write_png("colorbar.png", W, H, 4, buffer.data(), W * 4);
+    if (pngOk) {
+        printf("Wrote colorbar.png (%dx%d)\n", W, H);
+    } else {
+        fprintf(stderr, "Failed to write colorbar.png\n");
+    }
+
+    // --- Write SVG ---
+    scibar::SVGOptions svgOpts;
+    svgOpts.totalWidth  = 400;
+    svgOpts.totalHeight = 650;
+    svgOpts.colorbarBounds = {60, 50, 40, 500};
+
+    std::string svg = scibar::exportToSVG(spec, style, svgOpts);
+
+    FILE* svgFile = fopen("colorbar.svg", "w");
+    if (svgFile) {
+        fputs(svg.c_str(), svgFile);
+        fclose(svgFile);
+        printf("Wrote colorbar.svg\n");
+    } else {
+        fprintf(stderr, "Failed to write colorbar.svg\n");
+    }
+
+    printf("Done.\n");
+    return 0;
+}
