@@ -414,7 +414,8 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
 // Pixel drawing: drawTicks
 // =========================================================================
 
-Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style) {
+Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
+               Orientation orientation) {
     assert(canvas.pixels && "Canvas pixels must not be null");
     assert(barBounds.width > 0 && barBounds.height > 0 && "Bar bounds must have positive dimensions");
 
@@ -431,7 +432,7 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
     canvas_ity::canvas cv(canvas.width, canvas.height);
     loadCanvasToCV(cv, canvas);
 
-    // Set font for labels — use TTF data from loaded font
+    // Set font for labels
     const Font* font = &style.font;
     const FontEntry* entry = findFontEntry(font->handle);
     if (entry && !entry->ttfData.empty()) {
@@ -442,10 +443,9 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
     assert(range > 0.0f && "Scale range must be positive");
 
     Rect totalBounds = barBounds;
-    int generatedTickCount = 0;
+    bool isVertical = (orientation == Orientation::Vertical);
 
     for (const auto& tick : *ticks) {
-        // Map value to Y position within bar (value increases upward, y increases downward)
         float fraction = 0.0f;
 
         if (spec.scale.type == ScaleType::Logarithmic) {
@@ -458,39 +458,60 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
             fraction = (tick.value - spec.scale.min) / range;
         }
 
-        float y = static_cast<float>(barBounds.y + barBounds.height) -
-                  fraction * static_cast<float>(barBounds.height);
-
-        // Draw tick mark line (outward, to the right)
         setCanvasColor(cv, canvas_ity::stroke_style, style.tickColor);
         cv.set_line_width(1.0f);
-        cv.move_to(static_cast<float>(barBounds.x + barBounds.width), y);
-        cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + style.tickLength, y);
-        cv.stroke();
 
-        // Draw label
-        setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
-        cv.text_align = canvas_ity::leftward;
-        cv.text_baseline = canvas_ity::alphabetic;
+        if (isVertical) {
+            // Vertical: ticks to the right, labels left-aligned
+            float y = static_cast<float>(barBounds.y + barBounds.height) -
+                      fraction * static_cast<float>(barBounds.height);
 
-        if (entry && !entry->ttfData.empty()) {
-            cv.fill_text(tick.label.c_str(),
-                         static_cast<float>(barBounds.x + barBounds.width) + style.tickLength + 3.0f,
-                         y);
+            cv.move_to(static_cast<float>(barBounds.x + barBounds.width), y);
+            cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + style.tickLength, y);
+            cv.stroke();
+
+            setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
+            cv.text_align = canvas_ity::leftward;
+            cv.text_baseline = canvas_ity::alphabetic;
+
+            if (entry && !entry->ttfData.empty()) {
+                cv.fill_text(tick.label.c_str(),
+                             static_cast<float>(barBounds.x + barBounds.width) + style.tickLength + 3.0f,
+                             y);
+            }
+
+            int rightExtent = barBounds.x + barBounds.width +
+                              static_cast<int>(style.tickLength) + 100;
+            if (rightExtent > totalBounds.x + totalBounds.width) {
+                totalBounds.width = rightExtent - totalBounds.x;
+            }
+        } else {
+            // Horizontal: ticks below, labels centered
+            float x = static_cast<float>(barBounds.x) +
+                      fraction * static_cast<float>(barBounds.width);
+
+            cv.move_to(x, static_cast<float>(barBounds.y + barBounds.height));
+            cv.line_to(x, static_cast<float>(barBounds.y + barBounds.height) + style.tickLength);
+            cv.stroke();
+
+            setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
+            cv.text_align = canvas_ity::center;
+            cv.text_baseline = canvas_ity::top;
+
+            if (entry && !entry->ttfData.empty()) {
+                cv.fill_text(tick.label.c_str(), x,
+                             static_cast<float>(barBounds.y + barBounds.height) + style.tickLength + 3.0f);
+            }
+
+            int bottomExtent = barBounds.y + barBounds.height +
+                               static_cast<int>(style.tickLength) + 20;
+            if (bottomExtent > totalBounds.y + totalBounds.height) {
+                totalBounds.height = bottomExtent - totalBounds.y;
+            }
         }
-
-        ++generatedTickCount;
     }
 
-    // Expand totalBounds to include tick marks and labels to the right
-    int rightExtent = barBounds.x + barBounds.width + static_cast<int>(style.tickLength) + 100; // rough
-    if (rightExtent > totalBounds.x + totalBounds.width) {
-        totalBounds.width = rightExtent - totalBounds.x;
-    }
-
-    // Copy back full canvas
     storeCVToCanvas(canvas, cv);
-
     return totalBounds;
 }
 
