@@ -119,12 +119,14 @@ struct Tick {
 
 // Non-owning colormap view — avoids heap allocation per frame in real-time loops.
 // Implicitly constructible from std::vector<Color> for ergonomic one-shot usage.
+// Rvalue vector constructor is deleted to prevent dangling from temporaries.
 struct ColorMapView {
     const Color* data = nullptr;
     size_t size = 0;
 
     ColorMapView() = default;
     ColorMapView(const std::vector<Color>& v) : data(v.data()), size(v.size()) {}
+    ColorMapView(std::vector<Color>&&) = delete;
     ColorMapView(const Color* d, size_t s) : data(d), size(s) {}
 };
 
@@ -151,7 +153,10 @@ struct Style {
     static Style defaultDark();
 };
 
-// Canvas wrapper for pixel rendering
+// Canvas wrapper for pixel rendering.
+// pixels[] is a packed uint32_t array in RGBA byte order:
+//   byte 0 (LSB) = R, byte 1 = G, byte 2 = B, byte 3 (MSB) = A.
+// This matches the layout of Color::fromHex() and common RGBA8888 framebuffers.
 struct Canvas {
     uint32_t* pixels = nullptr;
     int width = 0;
@@ -281,7 +286,9 @@ opts.mainImageHref = "rendered_mesh.png"; // Mesh image exported from 3D engine
 opts.mainImageBounds = {20, 20, 550, 550};
 opts.colorbarBounds = {600, 50, 120, 500};
 
-// Generate pure vector SVG container with embedded raster content
+// Generate pure vector SVG container with embedded raster content.
+// Embedded <image> tags use image-rendering="crisp-edges" to prevent
+// bilinear blurring of scientific mesh data in browsers and vector editors.
 std::string svg_data = scibar::exportToSVG(spec, scibar::Style::defaultLight(), opts);
 
 std::ofstream out("figure1.svg");
@@ -348,6 +355,8 @@ enum class Orientation { Vertical, Horizontal };
 * **Tick label formatting:** `generateTicks()` uses `printf("%.*g", precision, value)` with the precision from `Style::tickPrecision` (default 6). Labels are owned strings in the `Tick` struct — no lifetime dependency.
 
 * **Spatial contract:** Each draw function renders exactly within its input `Rect` *except* ticks and labels, which protrude outward. The returned `Rect` reports the full extent including protrusions. The user is responsible for leaving enough canvas space — scibar never clips, pads, or repositions.
+
+* **Discrete / categorical colorbar seams:** When rendering binned or categorical scales as adjacent blocks, anti-aliased rasterizers may leave faint 1px gaps between blocks. In the pixel backend, snap block boundaries to integer pixel coordinates and overlap adjacent blocks by 0.5–1 px to prevent seams. In SVG, use `shape-rendering="crispEdges"` on each discrete `<rect>`.
 
 * **Reversed colorbar:** Not supported in v1. Users can reverse their `ColorMapView` data before passing it in. A built-in flag may be added later.
 
