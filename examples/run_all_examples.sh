@@ -21,6 +21,10 @@ declare -A EXAMPLES=(
     ["linear_vertical_viridis"]="linear_vertical_viridis:viridis_example"
     ["diverging_horizontal_vik"]="diverging_horizontal_vik:diverging_horizontal_example"
     ["diverging_vertical_vik"]="diverging_vertical_vik:diverging_vertical_example"
+    ["logarithmic_vertical_viridis"]="logarithmic_vertical_viridis:logarithmic_vertical_example"
+    ["logarithmic_horizontal_viridis"]="logarithmic_horizontal_viridis:logarithmic_horizontal_example"
+    ["categorical_vertical"]="categorical_vertical:categorical_vertical_example"
+    ["categorical_horizontal"]="categorical_horizontal:categorical_horizontal_example"
 )
 
 SUCCESSES=0
