@@ -35,6 +35,11 @@ enum class Orientation { Vertical, Horizontal };
 // Data Structures
 // =========================================================================
 
+// Float RGBA used for interop with float-based color libraries (e.g., scimesh).
+struct ColorF {
+    float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+};
+
 // Explicit RGBA structure — eliminates endianness bugs across platforms.
 // byte 0 (LSB) = R, byte 1 = G, byte 2 = B, byte 3 (MSB) = A.
 struct Color {
@@ -43,6 +48,17 @@ struct Color {
     static constexpr Color fromHex(uint32_t hex) {
         return { uint8_t(hex >> 24), uint8_t(hex >> 16),
                  uint8_t(hex >> 8),  uint8_t(hex & 0xFF) };
+    }
+
+    // Construct from float channels in [0, 1] range.
+    static constexpr Color fromFloat(float r, float g, float b, float a = 1.0f) {
+        return { uint8_t(r * 255.0f + 0.5f), uint8_t(g * 255.0f + 0.5f),
+                 uint8_t(b * 255.0f + 0.5f), uint8_t(a * 255.0f + 0.5f) };
+    }
+
+    // Convert to float representation for interop.
+    constexpr ColorF asFloat() const {
+        return { r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f };
     }
 };
 

@@ -11,6 +11,47 @@ TEST_CASE("Color fromHex", "[data]") {
     REQUIRE(c.a == 0x78);
 }
 
+TEST_CASE("Color fromFloat and asFloat roundtrip", "[data]") {
+    // Roundtrip: float → uint8_t → float should be lossless at endpoints.
+    {
+        auto c = scibar::Color::fromFloat(0.0f, 0.5f, 1.0f, 1.0f);
+        REQUIRE(c.r == 0);
+        REQUIRE(c.g == 128);
+        REQUIRE(c.b == 255);
+        REQUIRE(c.a == 255);
+
+        auto cf = c.asFloat();
+        REQUIRE(cf.r == Catch::Approx(0.0f).margin(0.005f));
+        REQUIRE(cf.g == Catch::Approx(0.5f).margin(0.005f));
+        REQUIRE(cf.b == Catch::Approx(1.0f).margin(0.005f));
+        REQUIRE(cf.a == Catch::Approx(1.0f).margin(0.005f));
+    }
+
+    // Identity roundtrip for all 256 gray levels.
+    for (int i = 0; i <= 255; ++i) {
+        float v = i / 255.0f;
+        auto c  = scibar::Color::fromFloat(v, v, v);
+        auto cf = c.asFloat();
+        REQUIRE(c.r == i);
+        REQUIRE(cf.r == Catch::Approx(v).margin(0.005f));
+    }
+
+    // Default alpha.
+    {
+        auto c = scibar::Color::fromFloat(0.2f, 0.4f, 0.6f);
+        REQUIRE(c.a == 255); // default opaque
+    }
+
+    // ColorF default values.
+    {
+        scibar::ColorF cf;
+        REQUIRE(cf.r == 0.0f);
+        REQUIRE(cf.g == 0.0f);
+        REQUIRE(cf.b == 0.0f);
+        REQUIRE(cf.a == 1.0f);
+    }
+}
+
 TEST_CASE("ColorMapView from vector", "[data]") {
     std::vector<scibar::Color> colors = {
         scibar::Color{255, 0, 0, 255},
