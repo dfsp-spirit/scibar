@@ -1,5 +1,5 @@
-// scibar example: horizontal viridis colorbar
-// Demonstrates low-level API for manual horizontal layout with PNG + SVG output.
+// scibar example: horizontal diverging colorbar with vik colormap
+// Demonstrates low-level API for manual horizontal layout with diverging scale.
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
@@ -16,22 +16,23 @@ int main() {
     // --- Load font ---
     scibar::Font font = scibar::loadFont("../../../fonts/Inter-Regular.ttf", 14.0f);
 
-    // --- Setup canvas (wide and short for horizontal bar) ---
+    // --- Setup canvas ---
     const int W = 700, H = 200;
     std::vector<uint32_t> buffer(static_cast<size_t>(W) * H);
     scibar::Canvas canvas{buffer.data(), W, H};
 
     scibar::fillCanvas(canvas, scibar::Color{255, 255, 255, 255});
 
-    // --- Define data ---
-    auto viridisCmap = scibar::util::viridis();
+    // --- Define diverging data ---
+    auto vikCmap = scibar::util::vik();
 
     scibar::Spec spec;
-    spec.scale.type = scibar::ScaleType::Linear;
-    spec.scale.min  = 2.0f;
+    spec.scale.type = scibar::ScaleType::Diverging;
+    spec.scale.min  = -5.0f;
     spec.scale.max  = 5.0f;
-    spec.title      = "Random Value";
-    spec.colormap   = viridisCmap;
+    spec.scale.midpoint = 0.0f;
+    spec.title      = "Anomaly (Vik)";
+    spec.colormap   = vikCmap;
 
     // --- Style ---
     scibar::Style style = scibar::Style::defaultLight();
@@ -45,19 +46,15 @@ int main() {
 
     scibar::Rect barRect{barX, barY, barWidth, barHeight};
 
-    // Title: centered above the bar
+    // Title
     scibar::Rect titleRect{barX, barY - 35, barWidth, 30};
-    scibar::Rect titleBounds = scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::drawTitle(canvas, titleRect, spec.title, style);
 
     // Colorbar
-    scibar::Rect colorBounds = scibar::drawColorBar(canvas, barRect, spec, style);
+    scibar::drawColorBar(canvas, barRect, spec, style, scibar::Orientation::Horizontal);
 
-    // Ticks below the bar (horizontal orientation)
-    scibar::Rect tickBounds = scibar::drawTicks(canvas, barRect, spec, style,
-                                                scibar::Orientation::Horizontal);
-
-    printf("Colorbar bounds: (%d,%d) %dx%d\n",
-           colorBounds.x, colorBounds.y, colorBounds.width, colorBounds.height);
+    // Ticks below the bar
+    scibar::drawTicks(canvas, barRect, spec, style, scibar::Orientation::Horizontal);
 
     // --- Write PNG ---
     int pngOk = stbi_write_png("colorbar.png", W, H, 4, buffer.data(), W * 4);
@@ -74,7 +71,7 @@ int main() {
     svgOpts.colorbarBounds = {100, 150, 500, 30};
 
     std::string svg = scibar::exportToSVG(spec, style, svgOpts,
-                                        scibar::Orientation::Horizontal);
+                                          scibar::Orientation::Horizontal);
 
     FILE* svgFile = fopen("colorbar.svg", "w");
     if (svgFile) {

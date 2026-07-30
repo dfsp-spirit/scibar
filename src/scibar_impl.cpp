@@ -379,33 +379,52 @@ void fillCanvas(Canvas& canvas, Color color) {
 // Pixel drawing: drawColorBar
 // =========================================================================
 
-Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style) {
+Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style,
+                  Orientation orientation) {
     assert(canvas.pixels && "Canvas pixels must not be null");
     assert(bounds.width > 0 && bounds.height > 0 && "Bounds must have positive dimensions");
     assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
 
     canvas_ity::canvas cv(canvas.width, canvas.height);
     loadCanvasToCV(cv, canvas);
+    bool isVertical = (orientation == Orientation::Vertical);
 
     if (spec.scale.type == ScaleType::Categorical && spec.colormap.size > 0) {
-        // Discrete blocks — snap to integer coords, overlap by 0.5px to prevent seams
-        float blockHeight = static_cast<float>(bounds.height) / static_cast<float>(spec.colormap.size);
-        for (size_t i = 0; i < spec.colormap.size; ++i) {
-            const Color& c = spec.colormap.data[i];
-            float y0 = static_cast<float>(bounds.y) + static_cast<float>(i) * blockHeight;
-            float y1 = y0 + blockHeight + 0.5f; // slight overlap to prevent seams
-
-            setCanvasColor(cv, canvas_ity::fill_style, c);
-            cv.fill_rectangle(static_cast<float>(bounds.x), y0,
-                              static_cast<float>(bounds.width), y1 - y0);
+        if (isVertical) {
+            float blockH = static_cast<float>(bounds.height) / static_cast<float>(spec.colormap.size);
+            for (size_t i = 0; i < spec.colormap.size; ++i) {
+                const Color& c = spec.colormap.data[i];
+                float y0 = static_cast<float>(bounds.y) + static_cast<float>(i) * blockH;
+                float y1 = y0 + blockH + 0.5f;
+                setCanvasColor(cv, canvas_ity::fill_style, c);
+                cv.fill_rectangle(static_cast<float>(bounds.x), y0,
+                                  static_cast<float>(bounds.width), y1 - y0);
+            }
+        } else {
+            float blockW = static_cast<float>(bounds.width) / static_cast<float>(spec.colormap.size);
+            for (size_t i = 0; i < spec.colormap.size; ++i) {
+                const Color& c = spec.colormap.data[i];
+                float x0 = static_cast<float>(bounds.x) + static_cast<float>(i) * blockW;
+                float x1 = x0 + blockW + 0.5f;
+                setCanvasColor(cv, canvas_ity::fill_style, c);
+                cv.fill_rectangle(x0, static_cast<float>(bounds.y),
+                                  x1 - x0, static_cast<float>(bounds.height));
+            }
         }
     } else {
-        // Continuous scale — linear gradient
-        cv.set_linear_gradient(canvas_ity::fill_style,
-                               static_cast<float>(bounds.x),
-                               static_cast<float>(bounds.y + bounds.height), // bottom
-                               static_cast<float>(bounds.x),
-                               static_cast<float>(bounds.y));                // top
+        if (isVertical) {
+            cv.set_linear_gradient(canvas_ity::fill_style,
+                                   static_cast<float>(bounds.x),
+                                   static_cast<float>(bounds.y + bounds.height),
+                                   static_cast<float>(bounds.x),
+                                   static_cast<float>(bounds.y));
+        } else {
+            cv.set_linear_gradient(canvas_ity::fill_style,
+                                   static_cast<float>(bounds.x),
+                                   static_cast<float>(bounds.y),
+                                   static_cast<float>(bounds.x + bounds.width),
+                                   static_cast<float>(bounds.y));
+        }
 
         for (size_t i = 0; i < spec.colormap.size; ++i) {
             const Color& c = spec.colormap.data[i];

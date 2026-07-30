@@ -158,7 +158,8 @@ std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5, int pre
 
 // --- Low-level drawing (pixel backend) ---
 void fillCanvas(Canvas& canvas, Color color);
-Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
+Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style,
+                  Orientation orientation = Orientation::Vertical);
 Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
                Orientation orientation = Orientation::Vertical);
 Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
