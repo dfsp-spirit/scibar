@@ -27,6 +27,10 @@
 
 **The high-level `drawLegend()` is not a typesetting system.** It applies rough, hardcoded defaults for a vertical colorbar filling the entire canvas — useful for rapid prototyping and real-time debug overlays where precise layout is irrelevant. For anything that will appear in a publication, use the low-level API.
 
+### Error Handling Policy
+
+scibar uses **assertions** for invalid input (e.g., logarithmic scale with `min <= 0`, null canvas pixels, zero-dimension `Rect`). This follows the philosophy that scibar is a low-level building block: the caller is responsible for providing valid data. No exceptions, no silent clamping, no error codes — just fail fast and loud during development. In release builds (`-DNDEBUG`), behavior is undefined for invalid input.
+
 ---
 
 ## 2. Dual-Backend Architecture
@@ -113,10 +117,21 @@ struct Tick {
     std::string label; // Owning string avoids dangling view pointers
 };
 
+// Non-owning colormap view — avoids heap allocation per frame in real-time loops.
+// Implicitly constructible from std::vector<Color> for ergonomic one-shot usage.
+struct ColorMapView {
+    const Color* data = nullptr;
+    size_t size = 0;
+
+    ColorMapView() = default;
+    ColorMapView(const std::vector<Color>& v) : data(v.data()), size(v.size()) {}
+    ColorMapView(const Color* d, size_t s) : data(d), size(s) {}
+};
+
 // Data & Domain Specification
 struct Spec {
     Scale scale;
-    std::vector<Color> colormap; // RGBA lookup table
+    ColorMapView colormap;  // Non-owning RGBA lookup table
     std::string title;
     std::vector<Tick> ticks;    // Custom ticks; auto-generated if empty
 };
@@ -128,6 +143,9 @@ struct Style {
     Color tickColor  = Color::fromHex(0x000000FF);
     Color textColor  = Color::fromHex(0x000000FF);
     Font font;
+
+    float tickLength = 5.0f;        // Outward tick mark length in pixels
+    int tickPrecision = 6;          // Significant digits for auto-generated tick labels (%.*g)
 
     static Style defaultLight();
     static Style defaultDark();
@@ -174,9 +192,12 @@ These are the core of `scibar`. Every element is placed at explicit `Rect` coord
 ```cpp
 namespace scibar {
 
-void drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
-void drawTicks(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
-void drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
+// Each draw function returns the actual bounding box of everything it rendered.
+// This may extend beyond the input Rect (e.g., tick marks and labels protrude
+// outward from the bar edge). The caller can union these to compute total extent.
+Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
+Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style);
+Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
 
 // Utility: measure text dimensions for manual layout calculations
 std::array<float, 2> measureText(const std::string& text, const Font& font);
@@ -188,8 +209,9 @@ FontMetrics fontMetrics(const Font& font);
 float textAdvance(const Font& font, const std::string& text, int upToIndex);
 float codepointAdvance(const Font& font, int leftCodepoint, int rightCodepoint);
 
-// Utility: generate sensible tick values via nice-numbers algorithm
-std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5);
+// Utility: generate sensible tick values via nice-numbers algorithm.
+// Labels are formatted with Style::tickPrecision via printf("%.*g").
+std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5, int precision = 6);
 
 } // namespace scibar
 ```
@@ -317,8 +339,16 @@ struct LayoutResult {
 enum class Orientation { Vertical, Horizontal };
 ```
 
-* specify SVG drawing method for colorbars of different types, to avoid render artefacts. Details: In SVG export (`exportToSVG`), continuous colormaps are rendered via `<linearGradient>`. However, PDF/SVG vector engines often create subtle anti-aliasing seams (faint white or grey lines) when rendering adjacent shapes or continuous gradient stops across sharp binned thresholds. Actionable Tweak: Explicitly define the two SVG rendering paths in Section 2/5 of the plan: For Continuous Scales (Linear, Diverging, Logarithmic): Render as a single SVG `<rect>` filled with an SVG `<linearGradient>` definition containing discrete `<stop>` elements. For Discretized Scales (Binned, Categorical): Render as explicit individual `<rect>` elements stacked along the bar.
+* specify SVG drawing method for colorbars of different types, to avoid render artefacts. In SVG export (`exportToSVG`), continuous colormaps are rendered via `<linearGradient>`. However, PDF/SVG vector engines often create subtle anti-aliasing seams (faint white or grey lines) when rendering adjacent shapes or continuous gradient stops across sharp binned thresholds:
+  - **Continuous Scales** (Linear, Log): Render as a single SVG `<rect>` filled with a `<linearGradient>` containing discrete `<stop>` elements.
+  - **Discrete Scales** (Binned, Categorical): Render as explicit individual `<rect>` elements stacked along the bar.
 
-* maybe avoid memory copy on init, in case people call this in some real-time rendering loop?
+* **Tick direction:** Outward only (ticks extend away from the bar into user-managed space). No minor ticks in v1.
+
+* **Tick label formatting:** `generateTicks()` uses `printf("%.*g", precision, value)` with the precision from `Style::tickPrecision` (default 6). Labels are owned strings in the `Tick` struct — no lifetime dependency.
+
+* **Spatial contract:** Each draw function renders exactly within its input `Rect` *except* ticks and labels, which protrude outward. The returned `Rect` reports the full extent including protrusions. The user is responsible for leaving enough canvas space — scibar never clips, pads, or repositions.
+
+* **Reversed colorbar:** Not supported in v1. Users can reverse their `ColorMapView` data before passing it in. A built-in flag may be added later.
 
 * provide some convenience overloads for functions, like a `drawLegend()` version that does not require the third `style` parameter, and defaults to bright mode if it is not given.
