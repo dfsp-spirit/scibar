@@ -24,10 +24,14 @@ Thanks heaps to the authors of these great software packages that scibar is buil
 }
 ```
 
-
 And of course, thanks to the authors of the dependencies of these packages, and their dependencies...
 
 *Note: This section is to give credit only. Users do **not** need to worry about installing these dependencies, they come vendored with scimesh already.*
+
+## Author & License
+
+* License: [MIT](./LICENSE)
+* Author: [Tim Schäfer](https://ts.rcmd.org)
 
 
 
