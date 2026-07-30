@@ -132,11 +132,11 @@ struct Rect {
 struct SVGOptions {
     int totalWidth = 800;
     int totalHeight = 600;
-    
+
     // Embedded Main Content Render (e.g., 3D Mesh output)
     std::string mainImageHref = ""; // Local path or "data:image/png;base64,..."
     Rect mainImageBounds = {20, 20, 550, 550};
-    
+
     Rect colorbarBounds = {600, 50, 150, 500};
 };
 
@@ -160,7 +160,7 @@ namespace scibar {
 void drawLegend(Canvas& canvas, const Spec& spec, const Style& style = Style::defaultLight());
 
 // 2. Export standalone or hybrid vector legend to SVG string
-std::string exportToSVG(const Spec& spec, const Style& style = Style::defaultLight(), 
+std::string exportToSVG(const Spec& spec, const Style& style = Style::defaultLight(),
                         const SVGOptions& options = {});
 
 } // namespace scibar
@@ -261,8 +261,12 @@ out << svg_data;
 * **[Catch2](https://github.com/catchorg/Catch2):** Unit testing framework, development only (BSL-1.0 License).
 
 
-## Additional details 
-* return layout metrics on high level function calls, eg:
+## Additional details
+
+More things to keep in mind:
+
+* return layout metrics on high level function calls like `drawLegend()` and `exportToSVG()`, eg:
+
 ```cpp
  struct LayoutResult {
     Rect totalBoundingBox;   // Outer bounds including title and labels
@@ -273,12 +277,10 @@ out << svg_data;
 LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style = Style::defaultLight());
 ```
 
-Same for exportToSVG.
+* specify exactly the text alignment relative to ticks for vertical Vs horizontal colorbars. Details: Scientific colorbars are almost universally vertical on the side of a mesh, but occasionally horizontal at the bottom of a 2D plot.Actionable Tweak: Make sure LayoutEngine defines tick label anchor geometry (`text-anchor` in SVG, alignment bounding box in stb_truetype):Vertical Bar (Right Ticks): Left-aligned text (`text-anchor="start"`), vertically centered on tick mark `Y`.Horizontal Bar (Bottom Ticks): Horizontally centered text (`text-anchor="middle"`), top-aligned below tick mark `X`.Adding a simple enum `class Orientation { Vertical, Horizontal }` inside `Spec` or `LayoutEngine` ensures layout math doesn't get hardcoded to vertical-only.
 
-* specify exactly the text alignment relative to ticks for vertical Vs horizontal colorbars 
-
-* specify SVG drawing method for colorbars of different types,to avoid artefacts. rectangle, linear gradient, stop, ...
+* specify SVG drawing method for colorbars of different types, to avoid render artefacts. Details: In SVG export (`exportToSVG`), continuous colormaps are rendered via `<linearGradient>`. However, PDF/SVG vector engines often create subtle anti-aliasing seams (faint white or grey lines) when rendering adjacent shapes or continuous gradient stops across sharp binned thresholds. Actionable Tweak: Explicitly define the two SVG rendering paths in Section 2/5 of the plan: For Continuous Scales (Linear, Diverging, Logarithmic): Render as a single SVG `<rect>` filled with an SVG `<linearGradient>` definition containing discrete `<stop>` elements. For Discretized Scales (Binned, Categorical): Render as explicit individual `<rect>` elements stacked along the bar.
 
 * maybe avoid memory copy on init, in case people call this in some real-time rendering loop?
 
-* provide some convenience overloads for functions, likea draw legend version that does not require style and defaults to bright mode 
+* provide some convenience overloads for functions, like a `drawLegend()` version that does not require the third `style` parameter, and defaults to bright mode if it is not given.
