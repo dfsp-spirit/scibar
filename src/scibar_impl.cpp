@@ -15,6 +15,7 @@
 #include <cstring>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 #include <sstream>
 #include <unordered_map>
 
@@ -288,6 +289,28 @@ std::vector<Tick> generateTicks(const Scale& scale, int targetCount, int precisi
         snprintf(buf, sizeof(buf), "%.*g", precision, static_cast<double>(value));
         t.label = buf;
         ticks.push_back(std::move(t));
+    }
+
+    // For diverging scales, add midpoint tick if it falls between nice tick positions
+    if (scale.type == ScaleType::Diverging) {
+        // Check if midpoint is already covered by a tick
+        bool hasMidpoint = false;
+        for (const auto& t : ticks) {
+            if (std::abs(t.value - scale.midpoint) < niceStep * 0.01f) {
+                hasMidpoint = true;
+                break;
+            }
+        }
+        if (!hasMidpoint && scale.midpoint > scale.min && scale.midpoint < scale.max) {
+            Tick t;
+            t.value = scale.midpoint;
+            snprintf(buf, sizeof(buf), "%.*g", precision, static_cast<double>(scale.midpoint));
+            t.label = buf;
+            ticks.push_back(std::move(t));
+            // Re-sort by value
+            std::sort(ticks.begin(), ticks.end(),
+                      [](const Tick& a, const Tick& b) { return a.value < b.value; });
+        }
     }
 
     return ticks;

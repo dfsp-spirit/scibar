@@ -274,6 +274,70 @@ TEST_CASE("viridis colormap", "[util]") {
     REQUIRE(cmap[255].b < 60);
 }
 
+TEST_CASE("vik diverging colormap", "[util]") {
+    auto cmap = scibar::util::vik();
+    REQUIRE(cmap.size() == 256);
+
+    for (const auto& c : cmap) {
+        REQUIRE(c.a == 255);
+    }
+
+    // First entry is dark blue
+    REQUIRE(cmap[0].b > cmap[0].r);
+    // Middle is yellowish (midpoint ~128)
+    REQUIRE(cmap[128].g > cmap[128].b);
+    // Last entry is reddish
+    REQUIRE(cmap[255].r > cmap[255].b);
+}
+
+TEST_CASE("generateTicks diverging", "[ticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Diverging;
+    scale.min  = -3.0f;
+    scale.max  = 7.0f;
+    scale.midpoint = 2.0f;
+
+    auto ticks = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(ticks.size() >= 3);
+
+    // Midpoint should be included
+    bool hasMidpoint = false;
+    for (const auto& t : ticks) {
+        if (std::abs(t.value - 2.0f) < 0.01f) hasMidpoint = true;
+    }
+    REQUIRE(hasMidpoint);
+}
+
+TEST_CASE("drawColorBar diverging", "[draw]") {
+    auto cmap = scibar::util::vik();
+
+    const int W = 200, H = 600;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    scibar::Canvas cv{buf.data(), W, H};
+    scibar::fillCanvas(cv, scibar::Color{255, 255, 255, 255});
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Diverging;
+    spec.scale.min  = -3.0f;
+    spec.scale.max  = 7.0f;
+    spec.scale.midpoint = 2.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Style style = scibar::Style::defaultDark();
+    scibar::Rect bounds{50, 50, 40, 500};
+    scibar::Rect result = scibar::drawColorBar(cv, bounds, spec, style);
+
+    REQUIRE(result.width == bounds.width);
+    REQUIRE(result.height == bounds.height);
+
+    // Pixels in the bar area should be non-zero
+    bool hasColor = false;
+    for (int y = 60; y < 540 && !hasColor; ++y) {
+        if (buf[y * W + 55] != 0xFFFFFFFF) hasColor = true;
+    }
+    REQUIRE(hasColor);
+}
+
 TEST_CASE("exportToSVG basic", "[svg]") {
     auto cmap = testColormap();
 
