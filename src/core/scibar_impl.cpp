@@ -8,8 +8,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 
 #include "scibar.hpp"
-#include "third_party/canvas_ity.hpp"
-#include "third_party/stb_truetype.h"
+#include "../third_party/canvas_ity.hpp"
+#include "../third_party/stb_truetype.h"
 
 #include <cstdio>
 #include <cstring>

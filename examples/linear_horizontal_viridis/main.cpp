@@ -3,7 +3,7 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
-#include "../../src/scibar.hpp"
+#include "../../src/core/scibar.hpp"
 #include "../../src/third_party/canvas_ity.hpp"
 #include "../../src/third_party/stb_truetype.h"
 #include "../../src/third_party/stb_image_write.h"
@@ -13,6 +13,8 @@
 #include <vector>
 
 int main() {
+    int errors = 0;
+
     // --- Load font ---
     scibar::Font font = scibar::loadFont("../../../fonts/Inter-Regular.ttf", 14.0f);
 
@@ -66,6 +68,7 @@ int main() {
         printf("Wrote colorbar.png (%dx%d)\n", W, H);
     } else {
         fprintf(stderr, "Failed to write colorbar.png\n");
+        errors++;
     }
 
     // --- Write SVG ---
@@ -84,8 +87,9 @@ int main() {
         printf("Wrote colorbar.svg\n");
     } else {
         fprintf(stderr, "Failed to write colorbar.svg\n");
+        errors++;
     }
 
     printf("Done.\n");
-    return 0;
+    return errors > 0 ? 1 : 0;
 }
