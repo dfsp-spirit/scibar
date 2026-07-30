@@ -11,30 +11,33 @@
 `scibar` follows the **"One-Thing Well"** philosophy for C++ scientific visualization tools (such as [scimesh](https://github.com/dfsp-spirit/scimesh)):
 
 * **What we do:**
-  * Calculate layout geometry, ticks, and text positioning.
-  * Render legends into RGBA pixel buffers for direct UI/texture overlays.
+  * Render colorbar gradients, tick marks, and text labels into RGBA pixel buffers for direct UI/texture overlays.
   * Generate clean, native SVG vector graphics for publication figures (including hybrid raster-mesh embedding).
+  * Generate sensible tick values from a data range via a nice-numbers algorithm.
+  * Measure text dimensions for manual layout calculations.
 * **What we do NOT do:**
   * Window management, event handling, or complex charting frameworks.
   * GPU pipeline management (we operate strictly on CPU memory/string output).
+
+### What scibar is NOT
+
+**scibar is not a layout engine.** It does not solve spatial placement problems — no constraint solving, no collision detection, no multi-pass refinement, no automatic margin/padding negotiation. The user always controls where every element goes by passing explicit `Rect` bounds to the low-level API.
+
+**scibar is not a general-purpose 2D drawing library.** The pixel backend exists solely to render colorbar components. If you need to draw arbitrary shapes, paths, or UI widgets, use a dedicated library like `canvas_ity` directly.
+
+**The high-level `drawLegend()` is not a typesetting system.** It applies rough, hardcoded defaults for a vertical colorbar filling the entire canvas — useful for rapid prototyping and real-time debug overlays where precise layout is irrelevant. For anything that will appear in a publication, use the low-level API.
 
 ---
 
 ## 2. Dual-Backend Architecture
 
-To satisfy both real-time C++ engine overlays and journal publication standards, `scibar` decouples layout generation from rendering targets.
+`scibar` provides two independent rendering backends that share a common data model (`Spec`/`Style`). Both backends are driven by explicit user-provided layout coordinates — there is no layout engine between them.
 
 ```
-                         ┌─────────────────────────┐
-                         │   scibar::Spec/Style    │
-                         └────────────┬────────────┘
-                                      │
-                                      ▼
-                         ┌─────────────────────────┐
-                         │  scibar::LayoutEngine   │
-                         │ (tick math, bounds,     │
-                         │  typography spacing)    │
-                         └────────────┬────────────┘
+                         ┌──────────────────────────────┐
+                         │    scibar::Spec / Style      │
+                         │  (data, colormap, theming)   │
+                         └────────────┬─────────────────┘
                                       │
            ┌──────────────────────────┴──────────────────────────┐
            ▼                                                     ▼
@@ -44,6 +47,10 @@ To satisfy both real-time C++ engine overlays and journal publication standards,
 │  For real-time viewports  │                         │ For journal manuscripts   │
 └───────────────────────────┘                         └───────────────────────────┘
 ```
+
+**Helper utilities** available to both backends (not an architectural layer — just functions):
+- `generateTicks()`: Nice-numbers algorithm to produce sensible tick values from a data range.
+- `measureText()`: Returns pixel dimensions of a text string for the given font.
 
 ### A. Viewport Pixel Rendering (Real-Time Overlays)
 Renders directly into a caller-provided packed RGBA pixel buffer (`uint32_t*`). Ideal for 3D engine overlays, HUDs, or frame exports.
@@ -149,24 +156,11 @@ struct SVGOptions {
 
 ## 4. API Specification
 
-`scibar` provides both a high-level "smart" API for automated layout and low-level primitive functions for manual placement.
+`scibar` provides low-level primitive functions for fine-grained manual control, plus a single high-level convenience function for rapid prototyping.
 
-### High-Level API
+### Low-Level Primitives (Primary API)
 
-```cpp
-namespace scibar {
-
-// 1. Render legend auto-layout into pixel buffer
-void drawLegend(Canvas& canvas, const Spec& spec, const Style& style = Style::defaultLight());
-
-// 2. Export standalone or hybrid vector legend to SVG string
-std::string exportToSVG(const Spec& spec, const Style& style = Style::defaultLight(),
-                        const SVGOptions& options = {});
-
-} // namespace scibar
-```
-
-### Low-Level Primitives (Manual Layout Control)
+These are the core of `scibar`. Every element is placed at explicit `Rect` coordinates chosen by the user. This is the intended API for publication-quality output and any use case where precise spatial control matters.
 
 ```cpp
 namespace scibar {
@@ -175,8 +169,31 @@ void drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
 void drawTicks(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
 void drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
 
-// Utility for manual text positioning
+// Utility: measure text dimensions for manual layout calculations
 std::array<float, 2> measureText(const std::string& text, const Font& font);
+
+// Utility: generate sensible tick values via nice-numbers algorithm
+std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5);
+
+} // namespace scibar
+```
+
+### High-Level Convenience API (Rapid Prototyping Only)
+
+`drawLegend()` applies hardcoded defaults for a vertical colorbar filling the entire canvas, with ticks on the right and title centered above. It performs no constraint solving, collision detection, or multi-pass refinement. **Use it for quick iteration and real-time debug overlays — not for publication figures.**
+
+```cpp
+namespace scibar {
+
+// Render a vertical colorbar with reasonable defaults into a pixel buffer.
+// Returns LayoutResult with the actual bounding boxes used.
+LayoutResult drawLegend(Canvas& canvas, const Spec& spec,
+                        const Style& style = Style::defaultLight());
+
+// Export standalone or hybrid vector legend to SVG string.
+// Uses bounds from SVGOptions — no automatic layout.
+std::string exportToSVG(const Spec& spec, const Style& style = Style::defaultLight(),
+                        const SVGOptions& options = {});
 
 } // namespace scibar
 ```
@@ -265,19 +282,23 @@ out << svg_data;
 
 More things to keep in mind:
 
-* return layout metrics on high level function calls like `drawLegend()` and `exportToSVG()`, eg:
+* `drawLegend()` returns a `LayoutResult` so callers know where elements ended up:
 
 ```cpp
- struct LayoutResult {
-    Rect totalBoundingBox;   // Outer bounds including title and labels
-    Rect colorbarBoundingBox;// Bounds of just the gradient bar
+struct LayoutResult {
+    Rect totalBoundingBox;    // Outer bounds including title and labels
+    Rect colorbarBoundingBox; // Bounds of just the gradient bar
     int generatedTickCount;
 };
-
-LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style = Style::defaultLight());
 ```
 
-* specify exactly the text alignment relative to ticks for vertical Vs horizontal colorbars. Details: Scientific colorbars are almost universally vertical on the side of a mesh, but occasionally horizontal at the bottom of a 2D plot.Actionable Tweak: Make sure LayoutEngine defines tick label anchor geometry (`text-anchor` in SVG, alignment bounding box in stb_truetype):Vertical Bar (Right Ticks): Left-aligned text (`text-anchor="start"`), vertically centered on tick mark `Y`.Horizontal Bar (Bottom Ticks): Horizontally centered text (`text-anchor="middle"`), top-aligned below tick mark `X`.Adding a simple enum `class Orientation { Vertical, Horizontal }` inside `Spec` or `LayoutEngine` ensures layout math doesn't get hardcoded to vertical-only.
+* specify exactly the text alignment relative to ticks for vertical vs horizontal colorbars. Scientific colorbars are almost universally vertical on the side of a mesh, but occasionally horizontal at the bottom of a 2D plot. Define tick label anchor geometry (`text-anchor` in SVG, alignment bounding box in stb_truetype) via an `Orientation` enum:
+  - **Vertical Bar (Right Ticks):** Left-aligned text (`text-anchor="start"`), vertically centered on tick mark `Y`.
+  - **Horizontal Bar (Bottom Ticks):** Horizontally centered text (`text-anchor="middle"`), top-aligned below tick mark `X`.
+
+```cpp
+enum class Orientation { Vertical, Horizontal };
+```
 
 * specify SVG drawing method for colorbars of different types, to avoid render artefacts. Details: In SVG export (`exportToSVG`), continuous colormaps are rendered via `<linearGradient>`. However, PDF/SVG vector engines often create subtle anti-aliasing seams (faint white or grey lines) when rendering adjacent shapes or continuous gradient stops across sharp binned thresholds. Actionable Tweak: Explicitly define the two SVG rendering paths in Section 2/5 of the plan: For Continuous Scales (Linear, Diverging, Logarithmic): Render as a single SVG `<rect>` filled with an SVG `<linearGradient>` definition containing discrete `<stop>` elements. For Discretized Scales (Binned, Categorical): Render as explicit individual `<rect>` elements stacked along the bar.
 
