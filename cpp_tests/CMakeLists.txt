@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Include paths
 include_directories(
-    ${CMAKE_SOURCE_DIR}/../src
+    ${CMAKE_SOURCE_DIR}/../src/core
 )
 include_directories(SYSTEM
     ${CMAKE_SOURCE_DIR}/../src/third_party
@@ -17,7 +17,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # scibar implementation (one TU with SCIBAR_IMPLEMENTATION)
 set(SCIBAR_SOURCES
-    ${CMAKE_SOURCE_DIR}/../src/scibar_impl.cpp
+    ${CMAKE_SOURCE_DIR}/../src/core/scibar_impl.cpp
 )
 
 # Catch2 test runner (amalgamated)
