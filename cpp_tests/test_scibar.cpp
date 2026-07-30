@@ -137,3 +137,200 @@ TEST_CASE("generateTicks logarithmic", "[ticks]") {
     REQUIRE(has100);
     REQUIRE(has1000);
 }
+
+// Test colormap: use the built-in viridis
+static std::vector<scibar::Color> testColormap() {
+    return scibar::util::viridis();
+}
+
+TEST_CASE("drawColorBar basic", "[draw]") {
+    auto cmap = testColormap();
+
+    const int W = 200, H = 600;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Style style = scibar::Style::defaultDark();
+
+    scibar::Rect bounds{50, 50, 40, 500};
+    scibar::Rect result = scibar::drawColorBar(cv, bounds, spec, style);
+
+    REQUIRE(result.x == bounds.x);
+    REQUIRE(result.y == bounds.y);
+    REQUIRE(result.width == bounds.width);
+    REQUIRE(result.height == bounds.height);
+
+    // Pixels in the bar area should be non-zero (not all black)
+    bool hasColor = false;
+    for (int y = 60; y < 540 && !hasColor; ++y) {
+        for (int x = 55; x < 85 && !hasColor; ++x) {
+            if (buf[y * W + x] != 0) hasColor = true;
+        }
+    }
+    REQUIRE(hasColor);
+}
+
+TEST_CASE("drawTitle basic", "[draw]") {
+    auto cmap = testColormap();
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 400, H = 100;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.colormap = scibar::ColorMapView(cmap);
+    spec.title = "Test Title";
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font = font;
+
+    scibar::Rect bounds{0, 0, W, H};
+    scibar::Rect result = scibar::drawTitle(cv, bounds, spec.title, style);
+
+    REQUIRE(result.width > 0);
+    REQUIRE(result.height > 0);
+}
+
+TEST_CASE("drawTicks basic", "[draw]") {
+    auto cmap = testColormap();
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 400, H = 600;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Style style = scibar::Style::defaultDark();
+    style.font = font;
+
+    scibar::Rect barBounds{50, 50, 40, 500};
+    scibar::Rect result = scibar::drawTicks(cv, barBounds, spec, style);
+
+    // Tick bounds should extend beyond the bar to the right
+    REQUIRE(result.x <= barBounds.x);
+    REQUIRE(result.width >= barBounds.width);
+}
+
+TEST_CASE("drawLegend basic", "[draw]") {
+    auto cmap = testColormap();
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 300, H = 600;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.title = "Value";
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Style style = scibar::Style::defaultDark();
+    style.font = font;
+
+    scibar::LayoutResult result = scibar::drawLegend(cv, spec, style);
+
+    REQUIRE(result.totalBoundingBox.width > 0);
+    REQUIRE(result.totalBoundingBox.height > 0);
+    REQUIRE(result.colorbarBoundingBox.width > 0);
+    REQUIRE(result.colorbarBoundingBox.height > 0);
+    REQUIRE(result.generatedTickCount > 0);
+
+    // Verify pixels were written (not all zero)
+    bool hasContent = false;
+    for (size_t i = 0; i < buf.size() && !hasContent; ++i) {
+        if (buf[i] != 0) hasContent = true;
+    }
+    REQUIRE(hasContent);
+}
+
+TEST_CASE("viridis colormap", "[util]") {
+    auto cmap = scibar::util::viridis();
+    REQUIRE(cmap.size() == 256);
+
+    // All entries should be fully opaque
+    for (const auto& c : cmap) {
+        REQUIRE(c.a == 255);
+    }
+
+    // First entry is dark purple
+    REQUIRE(cmap[0].r < 80);
+    REQUIRE(cmap[0].g < 10);
+    REQUIRE(cmap[0].b > 80);
+
+    // Last entry is bright yellow
+    REQUIRE(cmap[255].r > 230);
+    REQUIRE(cmap[255].g > 220);
+    REQUIRE(cmap[255].b < 60);
+}
+
+TEST_CASE("exportToSVG basic", "[svg]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.title = "Value";
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.totalWidth = 400;
+    opts.totalHeight = 600;
+    opts.colorbarBounds = {50, 50, 40, 500};
+
+    std::string svg = scibar::exportToSVG(spec, scibar::Style::defaultLight(), opts);
+
+    REQUIRE_FALSE(svg.empty());
+    REQUIRE(svg.find("<svg") != std::string::npos);
+    REQUIRE(svg.find("linearGradient") != std::string::npos);
+    REQUIRE(svg.find("</svg>") != std::string::npos);
+}
+
+TEST_CASE("exportToSVG with hybrid image", "[svg]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 1.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.mainImageHref = "mesh.png";
+    opts.mainImageBounds = {0, 0, 400, 400};
+
+    std::string svg = scibar::exportToSVG(spec, scibar::Style::defaultLight(), opts);
+
+    REQUIRE(svg.find("<image") != std::string::npos);
+    REQUIRE(svg.find("crisp-edges") != std::string::npos);
+}
+
+TEST_CASE("exportToSVG categorical", "[svg]") {
+    // Small categorical colormap
+    std::vector<scibar::Color> catCmap = {
+        scibar::Color{255, 0, 0, 255},
+        scibar::Color{0, 255, 0, 255},
+        scibar::Color{0, 0, 255, 255},
+    };
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Categorical;
+    spec.colormap = scibar::ColorMapView(catCmap);
+
+    std::string svg = scibar::exportToSVG(spec);
+
+    // Categorical should NOT have a linearGradient
+    REQUIRE(svg.find("linearGradient") == std::string::npos);
+    // Should have individual rects
+    REQUIRE(svg.find("<rect") != std::string::npos);
+    REQUIRE(svg.find("</svg>") != std::string::npos);
+}

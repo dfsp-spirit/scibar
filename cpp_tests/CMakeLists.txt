@@ -4,10 +4,9 @@ project(scibar_tests CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Include paths: core renderer headers and vendored GLM
+# Include paths
 include_directories(
-    ${CMAKE_SOURCE_DIR}/../src/core
-    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/../src
 )
 include_directories(SYSTEM
     ${CMAKE_SOURCE_DIR}/../src/third_party
@@ -16,22 +15,22 @@ include_directories(SYSTEM
 # Optimization flags
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-# Source files for the renderer core library
-set(CORE_SOURCES
-    ${CMAKE_SOURCE_DIR}/../src/core/image.cpp
+# scibar implementation (one TU with SCIBAR_IMPLEMENTATION)
+set(SCIBAR_SOURCES
+    ${CMAKE_SOURCE_DIR}/../src/scibar_impl.cpp
 )
 
 # Catch2 test runner (amalgamated)
 add_executable(scibar_tests
     catch_amalgamated.cpp
     main.cpp
-    test_image.cpp
-    ${CORE_SOURCES}
+    test_scibar.cpp
+    ${SCIBAR_SOURCES}
 )
 
 target_compile_features(scibar_tests PRIVATE cxx_std_17)
 
-# Output test images to a known directory
+# Output to build directory
 set_property(TARGET scibar_tests PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Enable testing with CTest

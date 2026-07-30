@@ -15,6 +15,7 @@
 #include <cstring>
 #include <cassert>
 #include <cmath>
+#include <sstream>
 #include <unordered_map>
 
 namespace scibar {
@@ -290,6 +291,423 @@ std::vector<Tick> generateTicks(const Scale& scale, int targetCount, int precisi
     }
 
     return ticks;
+}
+
+// =========================================================================
+// Internal: find font entry from handle
+// =========================================================================
+
+static const FontEntry* findFontEntry(const void* handle) {
+    for (const auto& [key, entry] : s_fonts) {
+        if (&entry.stbInfo == handle) return &entry;
+    }
+    return nullptr;
+}
+
+// =========================================================================
+// Internal: scibar Color → canvas_ity float color
+// =========================================================================
+
+static void setCanvasColor(canvas_ity::canvas& cv, canvas_ity::brush_type type, const Color& c) {
+    cv.set_color(type, c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f);
+}
+
+// =========================================================================
+// Internal: copy canvas_ity region into scibar Canvas
+// =========================================================================
+
+static void copyPixels(Canvas& canvas, canvas_ity::canvas& cv, Rect region) {
+    // Clamp region to canvas bounds
+    int x0 = region.x < 0 ? 0 : region.x;
+    int y0 = region.y < 0 ? 0 : region.y;
+    int x1 = (region.x + region.width  > canvas.width)  ? canvas.width  : (region.x + region.width);
+    int y1 = (region.y + region.height > canvas.height) ? canvas.height : (region.y + region.height);
+
+    int w = x1 - x0;
+    int h = y1 - y0;
+    if (w <= 0 || h <= 0) return;
+
+    // Read RGBA8 pixels row by row, pack into uint32_t
+    std::vector<unsigned char> row(static_cast<size_t>(w) * 4);
+    for (int rowIdx = 0; rowIdx < h; ++rowIdx) {
+        cv.get_image_data(row.data(), w, 1, w * 4, x0, y0 + rowIdx);
+        for (int col = 0; col < w; ++col) {
+            int dstX = x0 + col;
+            int dstY = y0 + rowIdx;
+            unsigned char* src = row.data() + col * 4;
+            canvas.pixels[dstY * canvas.width + dstX] =
+                (static_cast<uint32_t>(src[3]) << 24) |  // A
+                (static_cast<uint32_t>(src[2]) << 16) |  // B
+                (static_cast<uint32_t>(src[1]) << 8)  |  // G
+                (static_cast<uint32_t>(src[0]));         // R
+        }
+    }
+}
+
+// =========================================================================
+// Pixel drawing: drawColorBar
+// =========================================================================
+
+Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+    assert(bounds.width > 0 && bounds.height > 0 && "Bounds must have positive dimensions");
+    assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
+
+    canvas_ity::canvas cv(canvas.width, canvas.height);
+
+    if (spec.scale.type == ScaleType::Categorical && spec.colormap.size > 0) {
+        // Discrete blocks — snap to integer coords, overlap by 0.5px to prevent seams
+        float blockHeight = static_cast<float>(bounds.height) / static_cast<float>(spec.colormap.size);
+        for (size_t i = 0; i < spec.colormap.size; ++i) {
+            const Color& c = spec.colormap.data[i];
+            float y0 = static_cast<float>(bounds.y) + static_cast<float>(i) * blockHeight;
+            float y1 = y0 + blockHeight + 0.5f; // slight overlap to prevent seams
+
+            setCanvasColor(cv, canvas_ity::fill_style, c);
+            cv.fill_rectangle(static_cast<float>(bounds.x), y0,
+                              static_cast<float>(bounds.width), y1 - y0);
+        }
+    } else {
+        // Continuous scale — linear gradient
+        cv.set_linear_gradient(canvas_ity::fill_style,
+                               static_cast<float>(bounds.x),
+                               static_cast<float>(bounds.y + bounds.height), // bottom
+                               static_cast<float>(bounds.x),
+                               static_cast<float>(bounds.y));                // top
+
+        for (size_t i = 0; i < spec.colormap.size; ++i) {
+            const Color& c = spec.colormap.data[i];
+            float offset = (spec.colormap.size > 1)
+                ? static_cast<float>(i) / static_cast<float>(spec.colormap.size - 1)
+                : 0.5f;
+
+            cv.add_color_stop(canvas_ity::fill_style, offset,
+                              c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f);
+        }
+
+        cv.fill_rectangle(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                          static_cast<float>(bounds.width), static_cast<float>(bounds.height));
+    }
+
+    // Draw frame if enabled
+    if (style.showFrame) {
+        setCanvasColor(cv, canvas_ity::stroke_style, style.frameColor);
+        cv.set_line_width(1.0f);
+        cv.stroke_rectangle(static_cast<float>(bounds.x), static_cast<float>(bounds.y),
+                            static_cast<float>(bounds.width), static_cast<float>(bounds.height));
+    }
+
+    copyPixels(canvas, cv, bounds);
+    return bounds;
+}
+
+// =========================================================================
+// Pixel drawing: drawTicks
+// =========================================================================
+
+Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+    assert(barBounds.width > 0 && barBounds.height > 0 && "Bar bounds must have positive dimensions");
+
+    // Auto-generate ticks if not provided
+    const std::vector<Tick>* ticks = &spec.ticks;
+    std::vector<Tick> generated;
+    if (ticks->empty()) {
+        generated = generateTicks(spec.scale, 5, style.tickPrecision);
+        ticks = &generated;
+    }
+
+    if (ticks->empty()) return barBounds;
+
+    canvas_ity::canvas cv(canvas.width, canvas.height);
+
+    // Set font for labels — use TTF data from loaded font
+    const Font* font = &style.font;
+    const FontEntry* entry = findFontEntry(font->handle);
+    if (entry && !entry->ttfData.empty()) {
+        cv.set_font(entry->ttfData.data(), static_cast<int>(entry->ttfData.size()), font->size);
+    }
+
+    float range = spec.scale.max - spec.scale.min;
+    assert(range > 0.0f && "Scale range must be positive");
+
+    Rect totalBounds = barBounds;
+    int generatedTickCount = 0;
+
+    for (const auto& tick : *ticks) {
+        // Map value to Y position within bar (value increases upward, y increases downward)
+        float fraction = 0.0f;
+
+        if (spec.scale.type == ScaleType::Logarithmic) {
+            assert(spec.scale.min > 0.0f && tick.value > 0.0f);
+            float logMin = std::log10(spec.scale.min);
+            float logMax = std::log10(spec.scale.max);
+            float logVal = std::log10(tick.value);
+            fraction = (logVal - logMin) / (logMax - logMin);
+        } else {
+            fraction = (tick.value - spec.scale.min) / range;
+        }
+
+        float y = static_cast<float>(barBounds.y + barBounds.height) -
+                  fraction * static_cast<float>(barBounds.height);
+
+        // Draw tick mark line (outward, to the right)
+        setCanvasColor(cv, canvas_ity::stroke_style, style.tickColor);
+        cv.set_line_width(1.0f);
+        cv.move_to(static_cast<float>(barBounds.x + barBounds.width), y);
+        cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + style.tickLength, y);
+        cv.stroke();
+
+        // Draw label
+        setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
+        cv.text_align = canvas_ity::leftward;
+        cv.text_baseline = canvas_ity::alphabetic;
+
+        if (entry && !entry->ttfData.empty()) {
+            cv.fill_text(tick.label.c_str(),
+                         static_cast<float>(barBounds.x + barBounds.width) + style.tickLength + 3.0f,
+                         y);
+        }
+
+        ++generatedTickCount;
+    }
+
+    // Expand totalBounds to include tick marks and labels to the right
+    int rightExtent = barBounds.x + barBounds.width + static_cast<int>(style.tickLength) + 100; // rough
+    if (rightExtent > totalBounds.x + totalBounds.width) {
+        totalBounds.width = rightExtent - totalBounds.x;
+    }
+
+    // Copy affected region
+    copyPixels(canvas, cv, totalBounds);
+
+    return totalBounds;
+}
+
+// =========================================================================
+// Pixel drawing: drawTitle
+// =========================================================================
+
+Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+
+    if (title.empty()) return bounds;
+
+    canvas_ity::canvas cv(canvas.width, canvas.height);
+
+    const FontEntry* entry = findFontEntry(style.font.handle);
+    if (!entry || entry->ttfData.empty()) return bounds;
+
+    cv.set_font(entry->ttfData.data(), static_cast<int>(entry->ttfData.size()), style.font.size);
+
+    setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
+    cv.text_align = canvas_ity::center;
+    cv.text_baseline = canvas_ity::top;
+
+    float textX = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) * 0.5f;
+    float textY = static_cast<float>(bounds.y);
+    cv.fill_text(title.c_str(), textX, textY);
+
+    // Measure actual text width for accurate bounds
+    float textWidth = cv.measure_text(title.c_str());
+    int actualWidth = static_cast<int>(std::ceil(textWidth));
+    FontMetrics fm = fontMetrics(style.font);
+    int actualHeight = static_cast<int>(std::ceil(fm.lineHeight));
+
+    Rect result;
+    result.x = static_cast<int>(textX) - actualWidth / 2;
+    result.y = bounds.y;
+    result.width = actualWidth;
+    result.height = actualHeight;
+
+    copyPixels(canvas, cv, result);
+    return result;
+}
+
+// =========================================================================
+// High-level convenience: drawLegend
+// =========================================================================
+
+LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+    assert(canvas.width > 0 && canvas.height > 0 && "Canvas must have positive dimensions");
+    assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
+
+    // Hardcoded layout for a vertical colorbar filling the canvas
+    // with rough defaults. For publication figures, use the low-level API.
+
+    int marginX = canvas.width / 10;
+    int titleHeight = 40;
+    int barWidth = canvas.width / 6;
+    int barHeight = canvas.height - titleHeight - marginX;
+    int barX = marginX;
+    int barY = titleHeight;
+
+    LayoutResult result;
+
+    // Title
+    Rect titleRect{0, 0, canvas.width, titleHeight};
+    Rect actualTitle = drawTitle(canvas, titleRect, spec.title, style);
+
+    // Color bar
+    Rect barRect{barX, barY, barWidth, barHeight};
+    result.colorbarBoundingBox = drawColorBar(canvas, barRect, spec, style);
+
+    // Ticks
+    auto generatedTicks = generateTicks(spec.scale, 5, style.tickPrecision);
+    Spec specWithTicks = spec;
+    if (spec.ticks.empty()) {
+        specWithTicks.ticks = generatedTicks;
+    }
+    result.generatedTickCount = static_cast<int>(specWithTicks.ticks.size());
+    Rect tickBounds = drawTicks(canvas, barRect, specWithTicks, style);
+
+    // Total bounds
+    result.totalBoundingBox = unionRect(unionRect(actualTitle, barRect), tickBounds);
+    return result;
+}
+
+// =========================================================================
+// SVG export
+// =========================================================================
+
+std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& options) {
+    assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
+    assert(options.totalWidth > 0 && options.totalHeight > 0 && "SVG dimensions must be positive");
+
+    std::ostringstream svg;
+    svg << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    svg << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        << "width=\"" << options.totalWidth << "\" "
+        << "height=\"" << options.totalHeight << "\" "
+        << "viewBox=\"0 0 " << options.totalWidth << " " << options.totalHeight << "\">\n";
+
+    // Embedded raster image (hybrid figure)
+    if (!options.mainImageHref.empty()) {
+        svg << "  <image href=\"" << options.mainImageHref << "\" "
+            << "x=\"" << options.mainImageBounds.x << "\" "
+            << "y=\"" << options.mainImageBounds.y << "\" "
+            << "width=\"" << options.mainImageBounds.width << "\" "
+            << "height=\"" << options.mainImageBounds.height << "\" "
+            << "image-rendering=\"crisp-edges\" "
+            << "preserveAspectRatio=\"none\" />\n";
+    }
+
+    const Rect& cb = options.colorbarBounds;
+
+    // Colormap gradient definition
+    if (spec.scale.type == ScaleType::Categorical) {
+        // Discrete blocks
+        float blockH = static_cast<float>(cb.height) / static_cast<float>(spec.colormap.size);
+        for (size_t i = 0; i < spec.colormap.size; ++i) {
+            const Color& c = spec.colormap.data[i];
+            float y0 = static_cast<float>(cb.y) + static_cast<float>(i) * blockH;
+            svg << "  <rect x=\"" << cb.x << "\" y=\"" << y0
+                << "\" width=\"" << cb.width << "\" height=\"" << blockH
+                << "\" fill=\"rgb(" << static_cast<int>(c.r) << ","
+                << static_cast<int>(c.g) << "," << static_cast<int>(c.b)
+                << ")\" shape-rendering=\"crispEdges\" />\n";
+        }
+    } else {
+        // Continuous: linear gradient
+        svg << "  <defs>\n";
+        svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">\n";
+        for (size_t i = 0; i < spec.colormap.size; ++i) {
+            const Color& c = spec.colormap.data[i];
+            float offset = (spec.colormap.size > 1)
+                ? static_cast<float>(i) / static_cast<float>(spec.colormap.size - 1)
+                : 0.5f;
+            svg << "      <stop offset=\"" << offset
+                << "\" stop-color=\"rgb(" << static_cast<int>(c.r) << ","
+                << static_cast<int>(c.g) << "," << static_cast<int>(c.b)
+                << ")\" stop-opacity=\"" << (c.a / 255.0f) << "\" />\n";
+        }
+        svg << "    </linearGradient>\n";
+        svg << "  </defs>\n";
+
+        svg << "  <rect x=\"" << cb.x << "\" y=\"" << cb.y
+            << "\" width=\"" << cb.width << "\" height=\"" << cb.height
+            << "\" fill=\"url(#scibarGrad)\" />\n";
+    }
+
+    // Frame
+    if (style.showFrame) {
+        svg << "  <rect x=\"" << cb.x << "\" y=\"" << cb.y
+            << "\" width=\"" << cb.width << "\" height=\"" << cb.height
+            << "\" fill=\"none\" stroke=\"rgb("
+            << static_cast<int>(style.frameColor.r) << ","
+            << static_cast<int>(style.frameColor.g) << ","
+            << static_cast<int>(style.frameColor.b)
+            << ")\" stroke-width=\"1\" />\n";
+    }
+
+    // Ticks
+    const std::vector<Tick>* ticks = &spec.ticks;
+    std::vector<Tick> generated;
+    if (ticks->empty()) {
+        generated = generateTicks(spec.scale, 5, style.tickPrecision);
+        ticks = &generated;
+    }
+
+    float range = spec.scale.max - spec.scale.min;
+    if (range > 0.0f) {
+        for (const auto& tick : *ticks) {
+            float fraction = 0.0f;
+            if (spec.scale.type == ScaleType::Logarithmic) {
+                if (spec.scale.min > 0.0f && tick.value > 0.0f) {
+                    float logMin = std::log10(spec.scale.min);
+                    float logMax = std::log10(spec.scale.max);
+                    fraction = (std::log10(tick.value) - logMin) / (logMax - logMin);
+                }
+            } else {
+                fraction = (tick.value - spec.scale.min) / range;
+            }
+
+            float y = static_cast<float>(cb.y + cb.height) -
+                      fraction * static_cast<float>(cb.height);
+
+            // Tick mark line
+            float tickStartX = static_cast<float>(cb.x + cb.width);
+            float tickEndX = tickStartX + style.tickLength;
+            svg << "  <line x1=\"" << tickStartX << "\" y1=\"" << y
+                << "\" x2=\"" << tickEndX << "\" y2=\"" << y
+                << "\" stroke=\"rgb("
+                << static_cast<int>(style.tickColor.r) << ","
+                << static_cast<int>(style.tickColor.g) << ","
+                << static_cast<int>(style.tickColor.b)
+                << ")\" stroke-width=\"1\" />\n";
+
+            // Tick label
+            float labelX = tickEndX + 3.0f;
+            svg << "  <text x=\"" << labelX << "\" y=\"" << y
+                << "\" font-family=\"Inter, sans-serif\" font-size=\""
+                << style.font.size
+                << "\" fill=\"rgb("
+                << static_cast<int>(style.textColor.r) << ","
+                << static_cast<int>(style.textColor.g) << ","
+                << static_cast<int>(style.textColor.b)
+                << ")\" text-anchor=\"start\" dominant-baseline=\"central\">"
+                << tick.label << "</text>\n";
+        }
+    }
+
+    // Title
+    if (!spec.title.empty()) {
+        int titleX = cb.x + cb.width / 2;
+        int titleY = cb.y - 10;
+        svg << "  <text x=\"" << titleX << "\" y=\"" << titleY
+            << "\" font-family=\"Inter, sans-serif\" font-size=\""
+            << style.font.size
+            << "\" fill=\"rgb("
+            << static_cast<int>(style.textColor.r) << ","
+            << static_cast<int>(style.textColor.g) << ","
+            << static_cast<int>(style.textColor.b)
+            << ")\" text-anchor=\"middle\">"
+            << spec.title << "</text>\n";
+    }
+
+    svg << "</svg>\n";
+    return svg.str();
 }
 
 } // namespace scibar
