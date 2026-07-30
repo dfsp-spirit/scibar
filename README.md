@@ -2,6 +2,11 @@
 colorbars for the masses, in c++
 
 
+<!-- badges: start -->
+  [![tests_cpp](https://github.com/dfsp-spirit/scibar/actions/workflows/unittests.yml/badge.svg?branch=main)](https://github.com/dfsp-spirit/scibar/actions)
+<!-- badges: end -->
+
+
 ## About
 
 scibar is a single-file, header only, C++17 library for plotting color bars to both vector and raster images, geared towards scientific visualization. It is also the natural fit for [scimesh](https://github.com/dfsp-spirit/scimesh).
