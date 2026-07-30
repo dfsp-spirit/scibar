@@ -313,34 +313,42 @@ static void setCanvasColor(canvas_ity::canvas& cv, canvas_ity::brush_type type, 
 }
 
 // =========================================================================
-// Internal: copy canvas_ity region into scibar Canvas
+// Internal: sync scibar Canvas ↔ canvas_ity canvas
 // =========================================================================
 
-static void copyPixels(Canvas& canvas, canvas_ity::canvas& cv, Rect region) {
-    // Clamp region to canvas bounds
-    int x0 = region.x < 0 ? 0 : region.x;
-    int y0 = region.y < 0 ? 0 : region.y;
-    int x1 = (region.x + region.width  > canvas.width)  ? canvas.width  : (region.x + region.width);
-    int y1 = (region.y + region.height > canvas.height) ? canvas.height : (region.y + region.height);
+static void loadCanvasToCV(canvas_ity::canvas& cv, const Canvas& canvas) {
+    cv.put_image_data(reinterpret_cast<const unsigned char*>(canvas.pixels),
+                      canvas.width, canvas.height, canvas.width * 4, 0, 0);
+}
 
-    int w = x1 - x0;
-    int h = y1 - y0;
-    if (w <= 0 || h <= 0) return;
-
-    // Read RGBA8 pixels row by row, pack into uint32_t
-    std::vector<unsigned char> row(static_cast<size_t>(w) * 4);
-    for (int rowIdx = 0; rowIdx < h; ++rowIdx) {
-        cv.get_image_data(row.data(), w, 1, w * 4, x0, y0 + rowIdx);
-        for (int col = 0; col < w; ++col) {
-            int dstX = x0 + col;
-            int dstY = y0 + rowIdx;
-            unsigned char* src = row.data() + col * 4;
-            canvas.pixels[dstY * canvas.width + dstX] =
+static void storeCVToCanvas(Canvas& canvas, canvas_ity::canvas& cv) {
+    std::vector<unsigned char> row(static_cast<size_t>(canvas.width) * 4);
+    for (int y = 0; y < canvas.height; ++y) {
+        cv.get_image_data(row.data(), canvas.width, 1, canvas.width * 4, 0, y);
+        for (int x = 0; x < canvas.width; ++x) {
+            unsigned char* src = row.data() + x * 4;
+            canvas.pixels[y * canvas.width + x] =
                 (static_cast<uint32_t>(src[3]) << 24) |  // A
                 (static_cast<uint32_t>(src[2]) << 16) |  // B
                 (static_cast<uint32_t>(src[1]) << 8)  |  // G
                 (static_cast<uint32_t>(src[0]));         // R
         }
+    }
+}
+
+// =========================================================================
+// Pixel drawing: fillCanvas
+// =========================================================================
+
+void fillCanvas(Canvas& canvas, Color color) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+    uint32_t packed = (static_cast<uint32_t>(color.a) << 24) |
+                      (static_cast<uint32_t>(color.b) << 16) |
+                      (static_cast<uint32_t>(color.g) << 8)  |
+                      (static_cast<uint32_t>(color.r));
+    size_t count = static_cast<size_t>(canvas.width) * static_cast<size_t>(canvas.height);
+    for (size_t i = 0; i < count; ++i) {
+        canvas.pixels[i] = packed;
     }
 }
 
@@ -354,6 +362,7 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
     assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
 
     canvas_ity::canvas cv(canvas.width, canvas.height);
+    loadCanvasToCV(cv, canvas);
 
     if (spec.scale.type == ScaleType::Categorical && spec.colormap.size > 0) {
         // Discrete blocks — snap to integer coords, overlap by 0.5px to prevent seams
@@ -397,7 +406,7 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
                             static_cast<float>(bounds.width), static_cast<float>(bounds.height));
     }
 
-    copyPixels(canvas, cv, bounds);
+    storeCVToCanvas(canvas, cv);
     return bounds;
 }
 
@@ -420,6 +429,7 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
     if (ticks->empty()) return barBounds;
 
     canvas_ity::canvas cv(canvas.width, canvas.height);
+    loadCanvasToCV(cv, canvas);
 
     // Set font for labels — use TTF data from loaded font
     const Font* font = &style.font;
@@ -478,8 +488,8 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
         totalBounds.width = rightExtent - totalBounds.x;
     }
 
-    // Copy affected region
-    copyPixels(canvas, cv, totalBounds);
+    // Copy back full canvas
+    storeCVToCanvas(canvas, cv);
 
     return totalBounds;
 }
@@ -494,6 +504,7 @@ Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Styl
     if (title.empty()) return bounds;
 
     canvas_ity::canvas cv(canvas.width, canvas.height);
+    loadCanvasToCV(cv, canvas);
 
     const FontEntry* entry = findFontEntry(style.font.handle);
     if (!entry || entry->ttfData.empty()) return bounds;
@@ -520,7 +531,7 @@ Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Styl
     result.width = actualWidth;
     result.height = actualHeight;
 
-    copyPixels(canvas, cv, result);
+    storeCVToCanvas(canvas, cv);
     return result;
 }
 

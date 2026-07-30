@@ -157,6 +157,7 @@ float codepointAdvance(const Font& font, int leftCodepoint, int rightCodepoint);
 std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5, int precision = 6);
 
 // --- Low-level drawing (pixel backend) ---
+void fillCanvas(Canvas& canvas, Color color);
 Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
 Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style);
 Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);

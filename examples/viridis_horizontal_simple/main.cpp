@@ -1,5 +1,5 @@
-// scibar example: viridis horizontal colorbar
-// Demonstrates high-level API with PNG + SVG output.
+// scibar example: viridis colorbar with PNG + SVG output
+// Demonstrates high-level API (vertical layout) with fillCanvas background.
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
@@ -16,13 +16,16 @@ int main() {
     // --- Load font ---
     scibar::Font font = scibar::loadFont("../../../fonts/Inter-Regular.ttf", 14.0f);
 
-    // --- Setup canvas (vertical bar, portrait orientation) ---
-    const int W = 250, H = 600;
-    std::vector<uint32_t> buffer(static_cast<size_t>(W) * H, 0xFFFFFFFF); // white background
+    // --- Setup canvas ---
+    const int W = 300, H = 600;
+    std::vector<uint32_t> buffer(static_cast<size_t>(W) * H);
     scibar::Canvas canvas{buffer.data(), W, H};
 
+    // White background (via fillCanvas helper)
+    scibar::fillCanvas(canvas, scibar::Color{255, 255, 255, 255});
+
     // --- Define data ---
-    auto viridisCmap = scibar::util::viridis(); // must be named — ColorMapView is non-owning
+    auto viridisCmap = scibar::util::viridis();
 
     scibar::Spec spec;
     spec.scale.type = scibar::ScaleType::Linear;
@@ -35,7 +38,7 @@ int main() {
     scibar::Style style = scibar::Style::defaultLight();
     style.font = font;
 
-    // --- Draw ---
+    // --- Draw (high-level vertical layout) ---
     scibar::LayoutResult result = scibar::drawLegend(canvas, spec, style);
 
     printf("Colorbar bounds: (%d,%d) %dx%d\n",
@@ -47,8 +50,6 @@ int main() {
     printf("Generated ticks: %d\n", result.generatedTickCount);
 
     // --- Write PNG ---
-    // pixels[] is uint32_t in RGBA byte order (LSB=R on little-endian),
-    // which matches stbi_write_png's expected R,G,B,A layout.
     int pngOk = stbi_write_png("colorbar.png", W, H, 4, buffer.data(), W * 4);
     if (pngOk) {
         printf("Wrote colorbar.png (%dx%d)\n", W, H);
