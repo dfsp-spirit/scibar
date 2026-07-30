@@ -218,6 +218,13 @@ float codepointAdvance(const Font& font, int leftCodepoint, int rightCodepoint);
 // Labels are formatted with Style::tickPrecision via printf("%.*g").
 std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5, int precision = 6);
 
+// Font loading: parse a .ttf file from disk for development and testing.
+// Returns a Font whose handle points to scibar-managed internal storage.
+// Caller does not own the returned resources — the font data persists for
+// the lifetime of the process. In production, omit this call and rely on
+// the embedded Inter font (Font::handle == nullptr).
+Font loadFont(const char* ttfFilePath, float size = 14.0f);
+
 } // namespace scibar
 ```
 
@@ -299,10 +306,27 @@ out << svg_data;
 
 ## 6. Font Handling & Embedded Assets
 
-`scibar` uses `stb_truetype.h` for pixel font rasterization.
+`scibar` uses `stb_truetype.h` for pixel font rasterization and supports three tiers of font usage:
 
-* **Default Embedded Font:** Includes **Inter-Regular.ttf** as an embedded byte array. Inter is an open-source, journal-approved typeface optimized for legibility in data visualizations.
-* **Custom Fonts:** Users can override the default font by supplying a pointer to their own loaded `stbtt_fontinfo` handle in `Style::font`.
+### Tier 1 — Disk-loaded (Development & Testing)
+
+```cpp
+scibar::Font font = scibar::loadFont("fonts/Inter-Regular.ttf", 14.0f);
+style.font = font;
+```
+
+`loadFont()` reads the .ttf file at startup, parses it, and retains it in internal static storage for the lifetime of the process. No cleanup required by the caller. This is the intended workflow during development — no 300KB header to scroll past.
+
+### Tier 2 — Embedded (Production, planned for later)
+
+When `Font::handle == nullptr`, scibar uses an embedded copy of Inter-Regular.ttf compiled directly into the library binary as a static byte array under `#ifdef SCIBAR_IMPLEMENTATION`. Zero file I/O, zero dependencies, single-header drop-in.
+
+This will be added after the core implementation stabilizes.
+
+### Tier 3 — Custom (Advanced)
+
+Users can override the default font entirely by supplying a pointer to their own loaded `stbtt_fontinfo` handle in `Style::font`.
+
 * **SVG Vector Text:** In SVG exports, text elements use standard CSS font family declarations (`font-family="Inter, sans-serif"`), ensuring crisp text rendering in browsers, Adobe Illustrator, Inkscape, and PDF renderers.
 * **Glyph-Level Metrics:** scibar exposes `fontMetrics()`, `textAdvance()`, and `codepointAdvance()` so users can perform per-glyph layout (superscripts, subscripts, custom cursor positioning, kerning-aware spacing) without reaching into stb_truetype internals directly. These are backend-agnostic — they return plain floats, not stb-specific types — keeping user code portable between pixel and SVG backends. scibar does NOT expose glyph bitmaps, glyph IDs, shaping, or line-breaking; those remain the domain of dedicated libraries.
 
