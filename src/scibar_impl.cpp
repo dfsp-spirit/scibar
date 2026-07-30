@@ -556,8 +556,8 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
 
     LayoutResult result;
 
-    // Title
-    Rect titleRect{0, 0, canvas.width, titleHeight};
+    // Title — centered above the colorbar, not the entire canvas
+    Rect titleRect{barX, 0, barWidth, titleHeight};
     Rect actualTitle = drawTitle(canvas, titleRect, spec.title, style);
 
     // Color bar
