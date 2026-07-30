@@ -28,10 +28,10 @@ int main() {
 
     scibar::Spec spec;
     spec.scale.type = scibar::ScaleType::Diverging;
-    spec.scale.min  = -3.0f;
-    spec.scale.max  = 7.0f;
-    spec.scale.midpoint = 2.0f;
-    spec.title      = "Z-Score (Vik)";
+    spec.scale.min  = -5.0f;
+    spec.scale.max  = 5.0f;
+    spec.scale.midpoint = 0.0f;
+    spec.title      = "Anomaly (Vik)";
     spec.colormap   = vikCmap;
 
     // --- Style ---
@@ -44,7 +44,7 @@ int main() {
     printf("Colorbar bounds: (%d,%d) %dx%d\n",
            result.colorbarBoundingBox.x, result.colorbarBoundingBox.y,
            result.colorbarBoundingBox.width, result.colorbarBoundingBox.height);
-    printf("Generated ticks: %d (includes midpoint 2.0)\n", result.generatedTickCount);
+    printf("Generated ticks: %d (includes midpoint 0.0)\n", result.generatedTickCount);
 
     // --- Write PNG ---
     int pngOk = stbi_write_png("colorbar.png", W, H, 4, buffer.data(), W * 4);
