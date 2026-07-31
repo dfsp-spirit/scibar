@@ -50,6 +50,7 @@ struct AppConfig {
 
     // Colormap
     std::string cmapName = "viridis";
+    std::string cmapFile;         // external file path (overrides cmapName if set)
     bool cmapReverse = false;
 
     // Orientation
@@ -81,6 +82,7 @@ static void printHelp(const char* prog) {
         "Options:\n"
         "  --config FILE       TOML config file (default: config.toml)\n"
         "  --cmap NAME         Colormap: viridis, vik\n"
+        "  --cmap-file FILE    Load colormap from text file (R G B triplets)\n"
         "  --type TYPE         Scale type: linear, log, categorical, diverging\n"
         "  --min VAL           Data minimum\n"
         "  --max VAL           Data maximum\n"
@@ -203,6 +205,8 @@ static void applyCLIArgs(int argc, char** argv, AppConfig& cfg, std::string& con
             configPath = nextStr();
         } else if (arg == "--cmap") {
             cfg.cmapName = nextStr();
+        } else if (arg == "--cmap-file") {
+            cfg.cmapFile = nextStr();
         } else if (arg == "--type") {
             cfg.scaleType = nextStr();
         } else if (arg == "--min") {
@@ -250,6 +254,53 @@ static void applyCLIArgs(int argc, char** argv, AppConfig& cfg, std::string& con
 }
 
 // =========================================================================
+// Load colormap from a plain-text file (Crameri-style RGB triplets)
+// =========================================================================
+
+static std::vector<scibar::Color> loadColormapFromFile(const std::string& path) {
+    std::vector<scibar::Color> cmap;
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        fprintf(stderr, "Error: cannot open colormap file '%s'\n", path.c_str());
+        exit(1);
+    }
+
+    std::string line;
+    int lineNo = 0;
+    while (std::getline(ifs, line)) {
+        lineNo++;
+        // Trim leading/trailing whitespace
+        size_t start = line.find_first_not_of(" \t\r");
+        if (start == std::string::npos) continue;  // blank line
+        size_t end = line.find_last_not_of(" \t\r");
+        line = line.substr(start, end - start + 1);
+
+        // Skip comment lines
+        if (line.empty() || line[0] == '#') continue;
+
+        float r = 0.0f, g = 0.0f, b = 0.0f;
+        if (sscanf(line.c_str(), "%f %f %f", &r, &g, &b) != 3) {
+            // Try comma-separated as fallback
+            if (sscanf(line.c_str(), "%f,%f,%f", &r, &g, &b) != 3) {
+                fprintf(stderr, "Error: malformed line %d in '%s': '%s'\n",
+                        lineNo, path.c_str(), line.c_str());
+                exit(1);
+            }
+        }
+
+        cmap.push_back(scibar::Color::fromFloat(r, g, b));
+    }
+
+    if (cmap.empty()) {
+        fprintf(stderr, "Error: no valid color entries in '%s'\n", path.c_str());
+        exit(1);
+    }
+
+    printf("Loaded %zu colors from '%s'\n", cmap.size(), path.c_str());
+    return cmap;
+}
+
+// =========================================================================
 // Resolve colormap
 // =========================================================================
 
@@ -282,7 +333,11 @@ static void buildSpec(const AppConfig& cfg, scibar::Spec& spec,
     spec.scale.inverted = cfg.scaleInverted;
 
     spec.title   = cfg.titleText;
-    cmapStorage  = resolveColormap(cfg.cmapName);
+    if (!cfg.cmapFile.empty()) {
+        cmapStorage  = loadColormapFromFile(cfg.cmapFile);
+    } else {
+        cmapStorage  = resolveColormap(cfg.cmapName);
+    }
     spec.colormap = cmapStorage;  // ColorMapView from lvalue — safe
     // ticks/subTicks left empty → auto-generated
 }
@@ -411,8 +466,11 @@ int main(int argc, char** argv) {
     }
 
     if (listCmaps) {
-        printf("Available colormaps:\n  viridis  — perceptually-uniform sequential\n");
+        printf("Built-in colormaps:\n  viridis  — perceptually-uniform sequential\n");
         printf("  vik      — diverging blue-yellow-red (Crameri)\n");
+        printf("\nYou can also load any colormap from a text file with --cmap-file.\n");
+        printf("Format: one RGB triplet per line (space or comma separated, 0.0–1.0).\n");
+        printf("Example file included: batlow.txt (Crameri)\n");
         return 0;
     }
 
