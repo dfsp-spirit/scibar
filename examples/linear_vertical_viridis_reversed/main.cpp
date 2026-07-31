@@ -39,7 +39,7 @@ int main() {
     // --- Style ---
     scibar::Style style = scibar::Style::defaultLight();
     style.font = font;
-    style.reversed = true;
+    style.reverseColors = true;
 
     // --- Draw (high-level vertical layout) ---
     scibar::LayoutResult result = scibar::drawLegend(canvas, spec, style);
