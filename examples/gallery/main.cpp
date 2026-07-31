@@ -98,14 +98,19 @@ int main() {
         render("gallery_05.ppm", spec, style);
     }
 
-    // ---- Panel 6: Categorical, forward ----
+    // ---- Panel 6: Categorical, forward (qualitative colormap) ----
     {
-        auto cmap = util::viridis();
+        std::vector<Color> qual = {
+            Color{ 31, 119, 180, 255}, // blue
+            Color{255, 127,  14, 255}, // orange
+            Color{ 44, 160,  44, 255}, // green
+            Color{214,  39,  40, 255}, // red
+        };
         Spec spec;
-        spec.scale    = Scale{ScaleType::Categorical, 0.0f, 8.0f};
+        spec.scale    = Scale{ScaleType::Categorical, 0.0f, 4.0f};
         spec.title    = "Categorical · forward";
-        spec.colormap = cmap;
-        spec.ticks    = {{1.0f, "A"}, {3.0f, "B"}, {5.0f, "C"}, {7.0f, "D"}};
+        spec.colormap = qual;
+        spec.ticks    = {{0.5f, "A"}, {1.5f, "B"}, {2.5f, "C"}, {3.5f, "D"}};
         auto style = Style::defaultLight();
         style.showSubTicks = false;
         render("gallery_06.ppm", spec, style);
@@ -113,12 +118,17 @@ int main() {
 
     // ---- Panel 7: Categorical, reversed ----
     {
-        auto cmap = util::viridis();
+        std::vector<Color> qual = {
+            Color{ 31, 119, 180, 255},
+            Color{255, 127,  14, 255},
+            Color{ 44, 160,  44, 255},
+            Color{214,  39,  40, 255},
+        };
         Spec spec;
-        spec.scale    = Scale{ScaleType::Categorical, 0.0f, 8.0f};
+        spec.scale    = Scale{ScaleType::Categorical, 0.0f, 4.0f};
         spec.title    = "Categorical · reversed";
-        spec.colormap = cmap;
-        spec.ticks    = {{1.0f, "A"}, {3.0f, "B"}, {5.0f, "C"}, {7.0f, "D"}};
+        spec.colormap = qual;
+        spec.ticks    = {{0.5f, "A"}, {1.5f, "B"}, {2.5f, "C"}, {3.5f, "D"}};
         auto style = Style::defaultLight();
         style.showSubTicks = false;
         style.reverseColors = true;
