@@ -40,6 +40,12 @@ Thanks heaps to the authors of these great software packages that scibar is buil
 
 And of course, thanks to the authors of the dependencies of these packages, and their dependencies...
 
+Our [full example applications](./examples/) use these additional tools:
+
+* the `batlow` colormap by Fabio Crameri, https://www.fabiocrameri.ch/colourmaps/
+* the toml++ header only library by Mark Gillard, https://github.com/marzer/tomlplusplus
+
+Once more, thank you!
 
 ## Author & License
 
