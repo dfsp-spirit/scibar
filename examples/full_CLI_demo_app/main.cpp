@@ -59,6 +59,10 @@ struct AppConfig {
     // Title
     std::string titleText = "Value";
 
+    // Layout (0 = auto)
+    int barThickness = 0;  // colorbar thickness in pixels
+    int barMargin    = 0;  // margin from canvas edge in pixels
+
     // Style
     std::string theme         = "light";
     float  fontSize        = 14.0f;
@@ -101,6 +105,8 @@ static void printHelp(const char* prog) {
         "  --no-frame          Hide frame\n"
         "  --ticks-inward      Draw tick marks inside the bar\n"
         "  --reverse           Reverse colormap direction\n"
+        "  --bar-thickness N   Colorbar thickness in pixels (default: auto)\n"
+        "  --bar-margin N      Margin from canvas edges (default: auto)\n"
         "  --inverted          Invert scale axis\n"
         "  --list-cmaps        List available colormaps and exit\n"
         "  -h, --help          Show this help and exit\n"
@@ -158,6 +164,12 @@ static AppConfig loadTOMLConfig(const std::string& path) {
         // [title]
         if (auto* tt = tbl["title"].as_table()) {
             cfg.titleText = (*tt)["text"].value_or("Value");
+        }
+
+        // [layout]
+        if (auto* lo = tbl["layout"].as_table()) {
+            cfg.barThickness = (*lo)["bar_thickness"].value_or(0);
+            cfg.barMargin    = (*lo)["bar_margin"].value_or(0);
         }
 
         // [style]
@@ -245,6 +257,10 @@ static void applyCLIArgs(int argc, char** argv, AppConfig& cfg, std::string& con
             cfg.cmapReverse = true;
         } else if (arg == "--inverted") {
             cfg.scaleInverted = true;
+        } else if (arg == "--bar-thickness") {
+            cfg.barThickness = nextInt();
+        } else if (arg == "--bar-margin") {
+            cfg.barMargin = nextInt();
         } else {
             fprintf(stderr, "Unknown option: %s\n", arg.c_str());
             fprintf(stderr, "Try '%s --help' for usage.\n", argv[0]);
@@ -357,6 +373,47 @@ static void buildStyle(const AppConfig& cfg, scibar::Style& style) {
 }
 
 // =========================================================================
+// Compute bar layout (shared by PNG and SVG renderers)
+// =========================================================================
+
+struct BarLayout {
+    int margin;
+    int barThick;
+    int barLen;
+    int barX;
+    int barY;
+};
+
+static BarLayout computeBarLayout(int canvasW, int canvasH, int cfgThickness,
+                                   int cfgMargin, scibar::Orientation ori,
+                                   int titleHeight = 0) {
+    BarLayout bl{};
+
+    bl.margin   = (cfgMargin > 0) ? cfgMargin : (std::min(canvasW, canvasH) / 10);
+    bl.barThick = (cfgThickness > 0) ? cfgThickness
+                   : ((ori == scibar::Orientation::Vertical) ? (canvasW / 6) : (canvasH / 6));
+    bl.barLen   = (ori == scibar::Orientation::Vertical)
+                      ? (canvasH - 2 * bl.margin)
+                      : (canvasW - 2 * bl.margin);
+    bl.barX = bl.margin;
+    bl.barY = bl.margin;
+
+    if (ori == scibar::Orientation::Horizontal) {
+        bl.barX += 80;  // room for title on left
+        bl.barY += 30;  // room for title above
+        bl.barLen = canvasW - 2 * bl.margin - 80;
+    } else if (titleHeight > 0) {
+        // Reserve space for title above the bar in vertical orientation
+        int neededTop = titleHeight + 5;
+        if (bl.barY < neededTop) {
+            bl.barY = neededTop;
+            bl.barLen = canvasH - bl.barY - bl.margin;
+        }
+    }
+    return bl;
+}
+
+// =========================================================================
 // Render
 // =========================================================================
 
@@ -373,30 +430,18 @@ static void renderPNG(const AppConfig& cfg, const scibar::Spec& spec,
                       ? scibar::Color{30, 30, 30, 255}
                       : scibar::Color{255, 255, 255, 255});
 
-    // Layout: margin-based, centered
-    int margin  = std::min(W, H) / 10;
-    int barLen  = (ori == scibar::Orientation::Vertical) ? (H - 2 * margin) : (W - 2 * margin);
-    int barThick = (ori == scibar::Orientation::Vertical) ? (W / 6) : (H / 6);
-    int barX = margin;
-    int barY = margin;
-    if (ori == scibar::Orientation::Vertical) {
-        barX = margin;
-        barY = margin;
-    } else {
-        barX = margin + 80;  // room for title on left
-        barY = margin + 30;  // room for title above
-        barLen = W - 2 * margin - 80;
-    }
-
     int titleH = static_cast<int>(cfg.fontSize * 2.0f);
 
-    scibar::Rect barRect{barX, barY, barThick, barLen};
+    // Layout — pass titleH so vertical mode reserves space above the bar
+    auto bl = computeBarLayout(W, H, cfg.barThickness, cfg.barMargin, ori, titleH);
+
+    scibar::Rect barRect{bl.barX, bl.barY, bl.barThick, bl.barLen};
     if (ori == scibar::Orientation::Horizontal) {
-        barRect = {barX, barY, barLen, barThick};
+        barRect = {bl.barX, bl.barY, bl.barLen, bl.barThick};
     }
 
     // Title
-    scibar::Rect titleRect{barX, barY - titleH - 5, barRect.width, titleH};
+    scibar::Rect titleRect{bl.barX, bl.barY - titleH - 5, barRect.width, titleH};
     scibar::drawTitle(canvas, titleRect, spec.title, style);
 
     // Bar
@@ -418,16 +463,13 @@ static void renderSVG(const AppConfig& cfg, const scibar::Spec& spec,
     opts.totalWidth  = cfg.canvasW;
     opts.totalHeight = cfg.canvasH;
 
-    int margin  = std::min(cfg.canvasW, cfg.canvasH) / 10;
-    int barLen  = (ori == scibar::Orientation::Vertical)
-                  ? (cfg.canvasH - 2 * margin) : (cfg.canvasW - 2 * margin);
-    int barThick = (ori == scibar::Orientation::Vertical)
-                   ? (cfg.canvasW / 6) : (cfg.canvasH / 6);
+    int titleH = static_cast<int>(cfg.fontSize * 2.0f);
+    auto bl = computeBarLayout(cfg.canvasW, cfg.canvasH, cfg.barThickness, cfg.barMargin, ori, titleH);
 
     if (ori == scibar::Orientation::Vertical) {
-        opts.colorbarBounds = {margin + 80, margin, barThick, barLen};
+        opts.colorbarBounds = {bl.barX + 80, bl.barY, bl.barThick, bl.barLen};
     } else {
-        opts.colorbarBounds = {margin + 80, margin + 60, barLen, barThick};
+        opts.colorbarBounds = {bl.barX, bl.barY, bl.barLen, bl.barThick};
     }
 
     std::string svg = scibar::exportToSVG(spec, style, opts, ori);

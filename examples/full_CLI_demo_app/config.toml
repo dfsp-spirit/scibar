@@ -26,6 +26,11 @@ direction = "vertical"  # "vertical" or "horizontal"
 [title]
 text = "Value"
 
+[layout]
+# Colorbar dimensions (set to 0 for automatic sizing)
+bar_thickness = 0    # bar width (vertical) or height (horizontal) in pixels
+bar_margin    = 0    # margin from canvas edge in pixels
+
 [style]
 theme           = "light"
 font_size       = 14.0
