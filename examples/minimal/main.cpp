@@ -27,6 +27,11 @@ int main() {
     Rect barRect{50, 45, 500, 30};
     drawColorBar(canvas, barRect, spec, style, Orientation::Horizontal);
     drawTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+    drawSubTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+
+    // Title centered above the bar
+    Rect titleRect{barRect.x, 5, barRect.width, 35};
+    drawTitle(canvas, titleRect, spec.title, style);
 
     // Save as PPM (no external dependencies)
     writePPM(canvas, "colorbar.ppm");
