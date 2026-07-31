@@ -34,6 +34,8 @@ declare -A EXAMPLES=(
     ["logarithmic_horizontal_viridis_reversed"]="logarithmic_horizontal_viridis_reversed:log_horizontal_reversed_example"
     ["categorical_vertical_reversed"]="categorical_vertical_reversed:categorical_vertical_reversed_example"
     ["categorical_horizontal_reversed"]="categorical_horizontal_reversed:categorical_horizontal_reversed_example"
+    # Axis inversion
+    ["diverging_horizontal_vik_axisinversed"]="diverging_horizontal_vik_axisinversed:vik_horizontal_axisinversed_example"
 )
 
 SUCCESSES=0

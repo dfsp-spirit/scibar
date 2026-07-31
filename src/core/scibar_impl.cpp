@@ -313,6 +313,10 @@ std::vector<Tick> generateTicks(const Scale& scale, int targetCount, int precisi
         }
     }
 
+    if (scale.inverted) {
+        std::reverse(ticks.begin(), ticks.end());
+    }
+
     return ticks;
 }
 
@@ -390,10 +394,11 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
     bool isVertical = (orientation == Orientation::Vertical);
 
     if (spec.scale.type == ScaleType::Categorical && spec.colormap.size > 0) {
+        bool flipIdx = (spec.scale.inverted != style.reverseColors);
         if (isVertical) {
             float blockH = static_cast<float>(bounds.height) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                size_t idx = style.reverseColors ? (spec.colormap.size - 1 - i) : i;
+                size_t idx = flipIdx ? (spec.colormap.size - 1 - i) : i;
                 const Color& c = spec.colormap.data[idx];
                 float y0 = static_cast<float>(bounds.y) + static_cast<float>(i) * blockH;
                 float y1 = y0 + blockH + 0.5f;
@@ -404,7 +409,7 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
         } else {
             float blockW = static_cast<float>(bounds.width) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                size_t idx = style.reverseColors ? (spec.colormap.size - 1 - i) : i;
+                size_t idx = flipIdx ? (spec.colormap.size - 1 - i) : i;
                 const Color& c = spec.colormap.data[idx];
                 float x0 = static_cast<float>(bounds.x) + static_cast<float>(i) * blockW;
                 float x1 = x0 + blockW + 0.5f;
@@ -414,8 +419,9 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
             }
         }
     } else {
+        bool gradientFlipped = (spec.scale.inverted != style.reverseColors);
         if (isVertical) {
-            if (style.reverseColors) {
+            if (gradientFlipped) {
                 cv.set_linear_gradient(canvas_ity::fill_style,
                                        static_cast<float>(bounds.x),
                                        static_cast<float>(bounds.y),
@@ -429,7 +435,7 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
                                        static_cast<float>(bounds.y));
             }
         } else {
-            if (style.reverseColors) {
+            if (gradientFlipped) {
                 cv.set_linear_gradient(canvas_ity::fill_style,
                                        static_cast<float>(bounds.x + bounds.width),
                                        static_cast<float>(bounds.y),
@@ -517,6 +523,8 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
         } else {
             fraction = (tick.value - spec.scale.min) / range;
         }
+
+        if (spec.scale.inverted) fraction = 1.0f - fraction;
 
         setCanvasColor(cv, canvas_ity::stroke_style, style.tickColor);
         cv.set_line_width(1.0f);
@@ -691,10 +699,11 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
 
     // Colormap
     if (spec.scale.type == ScaleType::Categorical) {
+        bool flipIdx = (spec.scale.inverted != style.reverseColors);
         if (isVertical) {
             float blockH = static_cast<float>(cb.height) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                size_t idx = style.reverseColors ? (spec.colormap.size - 1 - i) : i;
+                size_t idx = flipIdx ? (spec.colormap.size - 1 - i) : i;
                 const Color& c = spec.colormap.data[idx];
                 float y0 = static_cast<float>(cb.y) + static_cast<float>(i) * blockH;
                 svg << "  <rect x=\"" << cb.x << "\" y=\"" << y0
@@ -706,7 +715,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         } else {
             float blockW = static_cast<float>(cb.width) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                size_t idx = style.reverseColors ? (spec.colormap.size - 1 - i) : i;
+                size_t idx = flipIdx ? (spec.colormap.size - 1 - i) : i;
                 const Color& c = spec.colormap.data[idx];
                 float x0 = static_cast<float>(cb.x) + static_cast<float>(i) * blockW;
                 svg << "  <rect x=\"" << x0 << "\" y=\"" << cb.y
@@ -718,15 +727,16 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         }
     } else {
         // Continuous: linear gradient
+        bool gradientFlipped = (spec.scale.inverted != style.reverseColors);
         svg << "  <defs>\n";
         if (isVertical) {
-            if (style.reverseColors) {
+            if (gradientFlipped) {
                 svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n";
             } else {
                 svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">\n";
             }
         } else {
-            if (style.reverseColors) {
+            if (gradientFlipped) {
                 svg << "    <linearGradient id=\"scibarGrad\" x1=\"1\" y1=\"0\" x2=\"0\" y2=\"0\">\n";
             } else {
                 svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n";
@@ -782,6 +792,8 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
             } else {
                 fraction = (tick.value - spec.scale.min) / range;
             }
+
+            if (spec.scale.inverted) fraction = 1.0f - fraction;
 
             if (isVertical) {
                 float y = static_cast<float>(cb.y + cb.height) -

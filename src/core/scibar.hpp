@@ -67,6 +67,7 @@ struct Scale {
     float min = 0.0f;
     float max = 1.0f;
     float midpoint = 0.0f; // For diverging scales or log shifts
+    bool inverted = false;  // If true, max→min runs visually start→end of bar
 };
 
 struct Font {

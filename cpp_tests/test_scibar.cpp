@@ -598,3 +598,114 @@ TEST_CASE("exportToSVG reversed categorical", "[svg][reverse]") {
     // blue = rgb(0,0,255)
     REQUIRE(svg.find("rgb(0,0,255)", firstRect) != std::string::npos);
 }
+
+TEST_CASE("generateTicks inverted", "[ticks][inverted]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min   = 0.0f;
+    scale.max   = 10.0f;
+
+    auto fwd = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(fwd.size() >= 3);
+    REQUIRE(fwd.front().value < fwd.back().value);
+
+    scale.inverted = true;
+    auto inv = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(inv.size() == fwd.size());
+    // Inverted ticks should be in descending order
+    REQUIRE(inv.front().value > inv.back().value);
+}
+
+TEST_CASE("drawColorBar inverted continuous", "[draw][inverted]") {
+    auto cmap = testColormap();
+
+    const int W = 200, H = 600;
+    auto makeBuf = [&]() {
+        std::vector<uint32_t> b(static_cast<size_t>(W) * H, 0);
+        return b;
+    };
+
+    scibar::Spec fwdSpec;
+    fwdSpec.scale.min = 0.0f;
+    fwdSpec.scale.max = 100.0f;
+    fwdSpec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Spec invSpec = fwdSpec;
+    invSpec.scale.inverted = true;
+
+    scibar::Style style = scibar::Style::defaultDark();
+    scibar::Rect bounds{50, 50, 40, 500};
+
+    auto fwdBuf = makeBuf();
+    scibar::Canvas fwdCv{fwdBuf.data(), W, H};
+    scibar::drawColorBar(fwdCv, bounds, fwdSpec, style);
+
+    auto invBuf = makeBuf();
+    scibar::Canvas invCv{invBuf.data(), W, H};
+    scibar::drawColorBar(invCv, bounds, invSpec, style);
+
+    int topY = 60, botY = 530, midX = 70;
+    // Inverted bar should have colors swapped: top ≠ fwd top, bottom ≠ fwd bottom
+    REQUIRE(fwdBuf[topY * W + midX] != invBuf[topY * W + midX]);
+    REQUIRE(fwdBuf[botY * W + midX] != invBuf[botY * W + midX]);
+}
+
+TEST_CASE("exportToSVG inverted", "[svg][inverted]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.colorbarBounds = {50, 50, 40, 500};
+    scibar::Style style = scibar::Style::defaultLight();
+
+    std::string fwdSvg = scibar::exportToSVG(spec, style, opts);
+
+    spec.scale.inverted = true;
+    std::string invSvg = scibar::exportToSVG(spec, style, opts);
+
+    // Forward has y1="1" (gradient starts at bottom), inverted has y1="0" (starts at top)
+    REQUIRE(fwdSvg.find("y1=\"1\"") != std::string::npos);
+    REQUIRE(invSvg.find("y1=\"0\"") != std::string::npos);
+}
+
+TEST_CASE("inverted plus reverseColors cancel on continuous", "[draw][inverted]") {
+    auto cmap = testColormap();
+
+    const int W = 200, H = 600;
+    auto makeBuf = [&]() {
+        std::vector<uint32_t> b(static_cast<size_t>(W) * H, 0);
+        return b;
+    };
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Rect bounds{50, 50, 40, 500};
+
+    // Default: neither flag set
+    scibar::Style defStyle = scibar::Style::defaultDark();
+    auto defBuf = makeBuf();
+    scibar::Canvas defCv{defBuf.data(), W, H};
+    scibar::drawColorBar(defCv, bounds, spec, defStyle);
+
+    // Both: inverted + reverseColors — should cancel on continuous scales
+    spec.scale.inverted = true;
+    scibar::Style bothStyle = scibar::Style::defaultDark();
+    bothStyle.reverseColors = true;
+    auto bothBuf = makeBuf();
+    scibar::Canvas bothCv{bothBuf.data(), W, H};
+    scibar::drawColorBar(bothCv, bounds, spec, bothStyle);
+
+    // Continuous: inverted + reverseColors produces same gradient direction as default
+    int midX = 70;
+    int topY = 60, midY = 325, botY = 530;
+    REQUIRE(defBuf[topY * W + midX] == bothBuf[topY * W + midX]);
+    REQUIRE(defBuf[midY * W + midX] == bothBuf[midY * W + midX]);
+    REQUIRE(defBuf[botY * W + midX] == bothBuf[botY * W + midX]);
+}
