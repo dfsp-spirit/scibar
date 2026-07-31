@@ -36,6 +36,8 @@ declare -A EXAMPLES=(
     ["categorical_horizontal_reversed"]="categorical_horizontal_reversed:categorical_horizontal_reversed_example"
     # Axis inversion
     ["diverging_horizontal_vik_axisinversed"]="diverging_horizontal_vik_axisinversed:vik_horizontal_axisinversed_example"
+    ["categorical_horizontal_axisinversed"]="categorical_horizontal_axisinversed:categorical_horizontal_axisinversed_example"
+    ["categorical_horizontal_axisinversed_reversed"]="categorical_horizontal_axisinversed_reversed:categorical_horizontal_axisinversed_reversed_example"
 )
 
 SUCCESSES=0
