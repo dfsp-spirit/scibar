@@ -14,6 +14,9 @@ colorbars for the masses, in c++
 scibar is a single-file, header only, C++17 library for plotting color bars to both vector and raster images, geared towards scientific visualization. It is also the natural fit for [scimesh](https://github.com/dfsp-spirit/scimesh).
 
 
+![colorbar gallery](web/gallery.png)
+
+
 ## Documentation
 
 - 📖 [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
