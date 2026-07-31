@@ -58,6 +58,7 @@ int main() {
     // Ticks below the bar (horizontal orientation)
     scibar::Rect tickBounds = scibar::drawTicks(canvas, barRect, spec, style,
                                                 scibar::Orientation::Horizontal);
+    scibar::drawSubTicks(canvas, barRect, spec, style, scibar::Orientation::Horizontal);
 
     printf("Colorbar bounds: (%d,%d) %dx%d\n",
            colorBounds.x, colorBounds.y, colorBounds.width, colorBounds.height);

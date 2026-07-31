@@ -56,6 +56,7 @@ int main() {
 
     // Ticks below the bar (horizontal orientation)
     scibar::drawTicks(canvas, barRect, spec, style, scibar::Orientation::Horizontal);
+    scibar::drawSubTicks(canvas, barRect, spec, style, scibar::Orientation::Horizontal);
 
     // --- Write PNG ---
     int pngOk = stbi_write_png("colorbar.png", W, H, 4, buffer.data(), W * 4);

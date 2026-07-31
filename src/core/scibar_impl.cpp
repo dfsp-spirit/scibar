@@ -321,6 +321,71 @@ std::vector<Tick> generateTicks(const Scale& scale, int targetCount, int precisi
 }
 
 // =========================================================================
+// Sub-tick generation
+// =========================================================================
+
+std::vector<SubTick> generateSubTicks(const Scale& scale,
+                                       const std::vector<Tick>& majorTicks,
+                                       int subTicksPerInterval) {
+    assert(subTicksPerInterval >= 1 && "subTicksPerInterval must be at least 1");
+
+    std::vector<SubTick> subTicks;
+
+    // Categorical scales: no sub-ticks — categories are discrete blocks.
+    if (scale.type == ScaleType::Categorical) return subTicks;
+    if (majorTicks.size() < 2) return subTicks;
+
+    if (scale.type == ScaleType::Logarithmic) {
+        // Logarithmic sub-ticks: fixed at 2,3,4,5,6,7,8,9 × 10ⁿ between decade boundaries.
+        // subTicksPerInterval is ignored — log sub-ticks have an inherent structure.
+        for (size_t i = 0; i + 1 < majorTicks.size(); ++i) {
+            float low  = majorTicks[i].value;
+            float high = majorTicks[i + 1].value;
+            if (low > high) std::swap(low, high);
+
+            // Find the decade boundary: for log scales, major ticks are at powers of 10.
+            // Sub-ticks go at 2×10^p, 3×10^p, ..., 9×10^p between 10^p and 10^(p+1).
+            float decadeLow = std::pow(10.0f, std::floor(std::log10(low)));
+            while (decadeLow < high) {
+                float decadeHigh = decadeLow * 10.0f;
+                for (int k = 2; k <= 9; ++k) {
+                    float val = decadeLow * static_cast<float>(k);
+                    if (val > low && val < high && val > scale.min && val < scale.max) {
+                        subTicks.push_back({val});
+                    }
+                }
+                decadeLow = decadeHigh;
+            }
+        }
+    } else {
+        // Linear / Diverging: evenly-spaced sub-ticks between each pair of adjacent major ticks.
+        for (size_t i = 0; i + 1 < majorTicks.size(); ++i) {
+            float low  = majorTicks[i].value;
+            float high = majorTicks[i + 1].value;
+            if (low > high) std::swap(low, high);
+
+            float interval = (high - low) / static_cast<float>(subTicksPerInterval + 1);
+            for (int k = 1; k <= subTicksPerInterval; ++k) {
+                float val = low + interval * static_cast<float>(k);
+                if (val > scale.min && val < scale.max) {
+                    subTicks.push_back({val});
+                }
+            }
+        }
+    }
+
+    // Sort by value for consistent ordering.
+    std::sort(subTicks.begin(), subTicks.end(),
+              [](const SubTick& a, const SubTick& b) { return a.value < b.value; });
+
+    if (scale.inverted) {
+        std::reverse(subTicks.begin(), subTicks.end());
+    }
+
+    return subTicks;
+}
+
+// =========================================================================
 // Internal: find font entry from handle
 // =========================================================================
 
@@ -584,6 +649,80 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
 }
 
 // =========================================================================
+// Pixel drawing: drawSubTicks
+// =========================================================================
+
+Rect drawSubTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
+                  Orientation orientation) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+    assert(barBounds.width > 0 && barBounds.height > 0 && "Bar bounds must have positive dimensions");
+
+    if (!style.showSubTicks) return barBounds;
+
+    // Resolve major ticks for auto-generation reference.
+    const std::vector<Tick>* majorTicks = &spec.ticks;
+    std::vector<Tick> generatedMajor;
+    if (majorTicks->empty()) {
+        generatedMajor = generateTicks(spec.scale, 5, style.tickPrecision);
+        majorTicks = &generatedMajor;
+    }
+
+    // Auto-generate sub-ticks if not provided.
+    const std::vector<SubTick>* subTicks = &spec.subTicks;
+    std::vector<SubTick> generated;
+    if (subTicks->empty()) {
+        generated = generateSubTicks(spec.scale, *majorTicks, style.subTicksPerInterval);
+        subTicks = &generated;
+    }
+
+    if (subTicks->empty()) return barBounds;
+
+    canvas_ity::canvas cv(canvas.width, canvas.height);
+    loadCanvasToCV(cv, canvas);
+
+    float range = spec.scale.max - spec.scale.min;
+    assert(range > 0.0f && "Scale range must be positive");
+
+    bool isVertical = (orientation == Orientation::Vertical);
+
+    setCanvasColor(cv, canvas_ity::stroke_style, style.tickColor);
+    cv.set_line_width(1.0f);
+
+    for (const auto& st : *subTicks) {
+        float fraction = 0.0f;
+
+        if (spec.scale.type == ScaleType::Logarithmic) {
+            assert(spec.scale.min > 0.0f && st.value > 0.0f);
+            float logMin = std::log10(spec.scale.min);
+            float logMax = std::log10(spec.scale.max);
+            float logVal = std::log10(st.value);
+            fraction = (logVal - logMin) / (logMax - logMin);
+        } else {
+            fraction = (st.value - spec.scale.min) / range;
+        }
+
+        if (spec.scale.inverted) fraction = 1.0f - fraction;
+
+        if (isVertical) {
+            float y = static_cast<float>(barBounds.y + barBounds.height) -
+                      fraction * static_cast<float>(barBounds.height);
+            cv.move_to(static_cast<float>(barBounds.x + barBounds.width), y);
+            cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + style.subTickLength, y);
+            cv.stroke();
+        } else {
+            float x = static_cast<float>(barBounds.x) +
+                      fraction * static_cast<float>(barBounds.width);
+            cv.move_to(x, static_cast<float>(barBounds.y + barBounds.height));
+            cv.line_to(x, static_cast<float>(barBounds.y + barBounds.height) + style.subTickLength);
+            cv.stroke();
+        }
+    }
+
+    storeCVToCanvas(canvas, cv);
+    return barBounds; // Sub-ticks are shorter than major ticks — bounding box unchanged.
+}
+
+// =========================================================================
 // Pixel drawing: drawTitle
 // =========================================================================
 
@@ -661,6 +800,9 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
     }
     result.generatedTickCount = static_cast<int>(specWithTicks.ticks.size());
     Rect tickBounds = drawTicks(canvas, barRect, specWithTicks, style);
+
+    // Sub-ticks
+    drawSubTicks(canvas, barRect, specWithTicks, style);
 
     // Total bounds
     result.totalBoundingBox = unionRect(unionRect(actualTitle, barRect), tickBounds);
@@ -837,6 +979,57 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.textColor.b)
                     << ")\" text-anchor=\"middle\" dominant-baseline=\"hanging\">"
                     << tick.label << "</text>\n";
+            }
+        }
+    }
+
+    // Sub-ticks
+    if (style.showSubTicks) {
+        const std::vector<SubTick>* subTicks = &spec.subTicks;
+        std::vector<SubTick> generatedSub;
+        if (subTicks->empty()) {
+            generatedSub = generateSubTicks(spec.scale, *ticks, style.subTicksPerInterval);
+            subTicks = &generatedSub;
+        }
+
+        for (const auto& st : *subTicks) {
+            float fraction = 0.0f;
+            if (spec.scale.type == ScaleType::Logarithmic) {
+                if (spec.scale.min > 0.0f && st.value > 0.0f) {
+                    float logMin = std::log10(spec.scale.min);
+                    float logMax = std::log10(spec.scale.max);
+                    fraction = (std::log10(st.value) - logMin) / (logMax - logMin);
+                }
+            } else {
+                fraction = (st.value - spec.scale.min) / range;
+            }
+
+            if (spec.scale.inverted) fraction = 1.0f - fraction;
+
+            if (isVertical) {
+                float y = static_cast<float>(cb.y + cb.height) -
+                          fraction * static_cast<float>(cb.height);
+                float tickStartX = static_cast<float>(cb.x + cb.width);
+                float tickEndX = tickStartX + style.subTickLength;
+                svg << "  <line x1=\"" << tickStartX << "\" y1=\"" << y
+                    << "\" x2=\"" << tickEndX << "\" y2=\"" << y
+                    << "\" stroke=\"rgb("
+                    << static_cast<int>(style.tickColor.r) << ","
+                    << static_cast<int>(style.tickColor.g) << ","
+                    << static_cast<int>(style.tickColor.b)
+                    << ")\" stroke-width=\"1\" />\n";
+            } else {
+                float x = static_cast<float>(cb.x) +
+                          fraction * static_cast<float>(cb.width);
+                float tickStartY = static_cast<float>(cb.y + cb.height);
+                float tickEndY = tickStartY + style.subTickLength;
+                svg << "  <line x1=\"" << x << "\" y1=\"" << tickStartY
+                    << "\" x2=\"" << x << "\" y2=\"" << tickEndY
+                    << "\" stroke=\"rgb("
+                    << static_cast<int>(style.tickColor.r) << ","
+                    << static_cast<int>(style.tickColor.g) << ","
+                    << static_cast<int>(style.tickColor.b)
+                    << ")\" stroke-width=\"1\" />\n";
             }
         }
     }

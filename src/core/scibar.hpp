@@ -86,6 +86,12 @@ struct Tick {
     std::string label;
 };
 
+/// Sub-tick (minor tick) — an unlabeled tick mark drawn between major ticks.
+/// Typically shorter than major ticks and drawn without a text label.
+struct SubTick {
+    float value = 0.0f;
+};
+
 // Non-owning colormap view — avoids heap allocation per frame.
 // Implicitly constructible from std::vector<Color> for ergonomic usage.
 // Rvalue vector constructor deleted to prevent dangling from temporaries.
@@ -103,7 +109,8 @@ struct Spec {
     Scale scale;
     ColorMapView colormap;
     std::string title;
-    std::vector<Tick> ticks; // Custom ticks; auto-generated via generateTicks() if empty
+    std::vector<Tick>    ticks;    // Custom major ticks; auto-generated via generateTicks() if empty
+    std::vector<SubTick> subTicks; // Custom sub-ticks; auto-generated via generateSubTicks() if empty
 };
 
 struct Style {
@@ -113,9 +120,12 @@ struct Style {
     Color textColor     = Color::fromHex(0x000000FF);
     Font  font;
 
-    float tickLength    = 5.0f;  // Outward tick mark length in pixels
-    int   tickPrecision = 6;     // Significant digits for auto-generated tick labels (%.*g)
-    bool  reverseColors = false; // If true, flip colormap direction (low→high becomes high→low)
+    float tickLength         = 5.0f;  // Outward tick mark length in pixels
+    float subTickLength      = 3.0f;  // Sub-tick mark length in pixels (shorter than tickLength)
+    int   tickPrecision      = 6;     // Significant digits for auto-generated tick labels (%.*g)
+    int   subTicksPerInterval = 4;    // Number of sub-ticks between major ticks (linear/diverging only)
+    bool  showSubTicks       = true;  // If false, sub-ticks are not drawn
+    bool  reverseColors      = false; // If true, flip colormap direction (low→high becomes high→low)
 
     static Style defaultLight();
     static Style defaultDark();
@@ -172,7 +182,10 @@ float textAdvance(const Font& font, const std::string& text, int upToIndex);
 float codepointAdvance(const Font& font, int leftCodepoint, int rightCodepoint);
 
 // --- Tick generation ---
-std::vector<Tick> generateTicks(const Scale& scale, int targetCount = 5, int precision = 6);
+std::vector<Tick>    generateTicks(const Scale& scale, int targetCount = 5, int precision = 6);
+std::vector<SubTick> generateSubTicks(const Scale& scale,
+                                       const std::vector<Tick>& majorTicks,
+                                       int subTicksPerInterval = 4);
 
 // --- Low-level drawing (pixel backend) ---
 void fillCanvas(Canvas& canvas, Color color);
@@ -180,6 +193,8 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
                   Orientation orientation = Orientation::Vertical);
 Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
                Orientation orientation = Orientation::Vertical);
+Rect drawSubTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
+                  Orientation orientation = Orientation::Vertical);
 Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
 
 // --- High-level convenience ---
