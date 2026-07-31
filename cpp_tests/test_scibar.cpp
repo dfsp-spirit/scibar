@@ -266,6 +266,13 @@ static const std::vector<scibar::Color>& testColormap() {
     return cmap;
 }
 
+// All-white colormap — used as a control so gradient color does not
+// masquerade as a frame line in frame-presence tests.
+static const std::vector<scibar::Color>& whiteColormap() {
+    static std::vector<scibar::Color> cmap(256, scibar::Color{255, 255, 255, 255});
+    return cmap;
+}
+
 TEST_CASE("drawColorBar basic", "[draw]") {
     auto cmap = testColormap();
 
@@ -802,6 +809,45 @@ TEST_CASE("drawTicks renders label text near expected anchor", "[draw][pixel]") 
     REQUIRE(darkCount > 3);
 }
 
+TEST_CASE("drawTicks empty label produces no glyph pixels", "[draw][pixel]") {
+    // Negative control: without a label, the label patch should have negligible
+    // dark pixels (at most tick-line anti-aliasing bleed, much less than a glyph).
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 250, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, WHITE_PIXEL);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{50.0f, ""}}; // empty label
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font        = font;
+    style.tickLength  = 5.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    int tickY    = barBounds.y + barBounds.height / 2;
+    int anchorX  = barBounds.x + barBounds.width + static_cast<int>(style.tickLength) + 3;
+
+    int darkCount = 0;
+    for (int dy = -14; dy <= 0; ++dy) {
+        for (int dx = 0; dx <= 20; ++dx) {
+            int px = (tickY + dy) * W + (anchorX + dx);
+            if (px >= 0 && px < static_cast<int>(buf.size())) {
+                if (isDarkPixel(buf[px])) darkCount++;
+            }
+        }
+    }
+    // Without a label, there should be very few dark pixels (only tick bleed)
+    REQUIRE(darkCount <= 3);
+}
+
 TEST_CASE("drawTicks label rendered in dark colors for light mode", "[draw][pixel]") {
     auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
 
@@ -898,6 +944,42 @@ TEST_CASE("drawColorBar respects showFrame", "[draw][pixel]") {
 
     // Pixel at (frameX, frameY - 1) is above bar — should remain white
     REQUIRE(buf2[(frameY - 1) * W + frameX] == WHITE_PIXEL);
+}
+
+TEST_CASE("drawColorBar frame detection not confused by gradient", "[draw][pixel]") {
+    // Negative control: with an all-white colormap, the bar itself is white.
+    // A non-white pixel at the top edge can ONLY come from the frame line.
+    auto whiteCmap = whiteColormap();
+
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.colormap   = scibar::ColorMapView(whiteCmap);
+
+    scibar::Rect bounds{40, 20, 30, 200};
+    int frameY = bounds.y;
+    int frameX = bounds.x + bounds.width / 2;
+
+    // --- With frame: top edge midpoint should be non-white (black frame line) ---
+    scibar::Style styleFrame = scibar::Style::defaultLight();
+    styleFrame.showFrame  = true;
+    styleFrame.frameColor = scibar::Color{0, 0, 0, 255};
+    scibar::drawColorBar(cv, bounds, spec, styleFrame);
+    REQUIRE(isNotWhite(buf[frameY * W + frameX]));
+
+    // --- Without frame: top edge should be pure white bar background ---
+    std::vector<uint32_t> buf2(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv2{buf2.data(), W, H};
+
+    scibar::Style styleNoFrame = scibar::Style::defaultLight();
+    styleNoFrame.showFrame = false;
+    scibar::drawColorBar(cv2, bounds, spec, styleNoFrame);
+    REQUIRE(buf2[frameY * W + frameX] == WHITE_PIXEL);
 }
 
 TEST_CASE("exportToSVG respects ticksInward in line direction", "[svg]") {
