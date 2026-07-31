@@ -2,10 +2,9 @@
 // Demonstrates high-level API (vertical layout) with diverging scale and reversed colormap.
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar.hpp"
-#include "../../src/third_party/canvas_ity.hpp"
-#include "../../src/third_party/stb_truetype.h"
 #include "../../src/third_party/stb_image_write.h"
 
 #include <cstdio>
@@ -16,7 +15,7 @@ int main() {
     int errors = 0;
 
     // --- Load font ---
-    scibar::Font font = scibar::loadFont("../../../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // nullptr handle → uses embedded Inter font
 
     // --- Setup canvas ---
     const int W = 300, H = 600;

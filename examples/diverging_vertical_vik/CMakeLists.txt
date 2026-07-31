@@ -11,6 +11,5 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 add_executable(diverging_vertical_example
     main.cpp
-    ${CMAKE_SOURCE_DIR}/../../src/core/scibar_impl.cpp
 )
 target_compile_features(diverging_vertical_example PRIVATE cxx_std_17)

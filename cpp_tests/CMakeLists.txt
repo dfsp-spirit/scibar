@@ -15,17 +15,11 @@ include_directories(SYSTEM
 # Optimization flags
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-# scibar implementation (one TU with SCIBAR_IMPLEMENTATION)
-set(SCIBAR_SOURCES
-    ${CMAKE_SOURCE_DIR}/../src/core/scibar_impl.cpp
-)
-
 # Catch2 test runner (amalgamated)
 add_executable(scibar_tests
     catch_amalgamated.cpp
     main.cpp
     test_scibar.cpp
-    ${SCIBAR_SOURCES}
 )
 
 target_compile_features(scibar_tests PRIVATE cxx_std_17)

@@ -11,6 +11,5 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 add_executable(viridis_horizontal_example
     main.cpp
-    ${CMAKE_SOURCE_DIR}/../../src/core/scibar_impl.cpp
 )
 target_compile_features(viridis_horizontal_example PRIVATE cxx_std_17)
