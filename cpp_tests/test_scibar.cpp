@@ -2,6 +2,87 @@
 #include "scibar.hpp"
 
 #include <cmath>
+#include <string>
+#include <sstream>
+
+// =========================================================================
+// Pixel helpers
+// =========================================================================
+
+// Canvas pixel format: packed uint32_t RGBA — byte 0 (LSB) = R, byte 1 = G, byte 2 = B, byte 3 (MSB) = A.
+static constexpr uint32_t WHITE_PIXEL = 0xFFFFFFFF;
+
+static bool isDarkPixel(uint32_t px, int threshold = 200) {
+    uint8_t r = px & 0xFF;
+    uint8_t g = (px >> 8) & 0xFF;
+    uint8_t b = (px >> 16) & 0xFF;
+    return r < threshold && g < threshold && b < threshold;
+}
+
+static bool isLightPixel(uint32_t px, int threshold = 128) {
+    uint8_t r = px & 0xFF;
+    uint8_t g = (px >> 8) & 0xFF;
+    uint8_t b = (px >> 16) & 0xFF;
+    return r > threshold && g > threshold && b > threshold;
+}
+
+static bool isNotWhite(uint32_t px) {
+    return px != WHITE_PIXEL;
+}
+
+static bool pixelMatchesColor(uint32_t px, scibar::Color expected, int tolerance = 40) {
+    uint8_t r = px & 0xFF;
+    uint8_t g = (px >> 8) & 0xFF;
+    uint8_t b = (px >> 16) & 0xFF;
+    return std::abs(static_cast<int>(r) - static_cast<int>(expected.r)) <= tolerance &&
+           std::abs(static_cast<int>(g) - static_cast<int>(expected.g)) <= tolerance &&
+           std::abs(static_cast<int>(b) - static_cast<int>(expected.b)) <= tolerance;
+}
+
+// =========================================================================
+// SVG helpers
+// =========================================================================
+
+/// Extract all <line> attributes from an SVG string.
+/// Returns vector of {x1, y1, x2, y2} for each line element.
+static std::vector<std::array<float, 4>> extractSvgLines(const std::string& svg) {
+    std::vector<std::array<float, 4>> lines;
+    size_t pos = 0;
+    while (true) {
+        pos = svg.find("<line ", pos);  // space avoids matching <linearGradient>
+        if (pos == std::string::npos) break;
+
+        float vals[4] = {};
+        const char* attrs[] = {"x1=\"", "y1=\"", "x2=\"", "y2=\""};
+        size_t searchPos = pos;
+        for (int i = 0; i < 4; ++i) {
+            size_t attrPos = svg.find(attrs[i], searchPos);
+            if (attrPos != std::string::npos) {
+                vals[i] = std::stof(svg.substr(attrPos + strlen(attrs[i])));
+            }
+        }
+        lines.push_back({vals[0], vals[1], vals[2], vals[3]});
+        pos++;
+    }
+    return lines;
+}
+
+/// Extract all <text> element x attributes from an SVG string.
+static std::vector<float> extractSvgTextX(const std::string& svg) {
+    std::vector<float> xs;
+    size_t pos = 0;
+    while (true) {
+        pos = svg.find("<text ", pos);  // space avoids matching other elements
+        if (pos == std::string::npos) break;
+
+        size_t xPos = svg.find("x=\"", pos);
+        if (xPos != std::string::npos) {
+            xs.push_back(std::stof(svg.substr(xPos + 3)));
+        }
+        pos++;
+    }
+    return xs;
+}
 
 TEST_CASE("Color fromHex", "[data]") {
     auto c = scibar::Color::fromHex(0x12345678);
@@ -179,9 +260,10 @@ TEST_CASE("generateTicks logarithmic", "[ticks]") {
     REQUIRE(has1000);
 }
 
-// Test colormap: use the built-in viridis
-static std::vector<scibar::Color> testColormap() {
-    return scibar::util::viridis();
+// Test colormap: returns a reference to a static viridis instance
+static const std::vector<scibar::Color>& testColormap() {
+    static std::vector<scibar::Color> cmap = scibar::util::viridis();
+    return cmap;
 }
 
 TEST_CASE("drawColorBar basic", "[draw]") {
@@ -364,38 +446,563 @@ TEST_CASE("ticksInward", "[style]") {
     }
 }
 
-TEST_CASE("drawTicks inward does not crash and produces bounds", "[draw]") {
-    auto cmap = testColormap();
+TEST_CASE("drawTicks outward places tick line outside bar", "[draw][pixel]") {
     auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
 
-    const int W = 400, H = 600;
-    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF); // white
     scibar::Canvas cv{buf.data(), W, H};
 
     scibar::Spec spec;
-    spec.scale.min = 0.0f;
-    spec.scale.max = 100.0f;
-    spec.colormap = scibar::ColorMapView(cmap);
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font        = font;
+    style.ticksInward = false;
+    style.tickLength  = 8.0f; // longer for reliable detection
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    // Midpoint tick at 50 → 50% of bar height
+    int tickY    = barBounds.y + barBounds.height / 2; // 120
+    int barRight = barBounds.x + barBounds.width;       // 70
+
+    // Outward: non-white pixels at (barRight+1..barRight+tickLength, tickY)
+    bool foundOutside = false;
+    for (int dx = 1; dx <= static_cast<int>(style.tickLength); ++dx) {
+        if (isNotWhite(buf[tickY * W + (barRight + dx)])) {
+            foundOutside = true;
+            break;
+        }
+    }
+    REQUIRE(foundOutside);
+
+    // Inward side should be white (canvas background)
+    bool foundInside = false;
+    for (int dx = 1; dx <= static_cast<int>(style.tickLength); ++dx) {
+        if (isNotWhite(buf[tickY * W + (barRight - dx)])) {
+            foundInside = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(foundInside);
+}
+
+TEST_CASE("drawTicks inward places tick line inside bar", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, WHITE_PIXEL);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font        = font;
+    style.ticksInward = true;
+    style.tickLength  = 8.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    int tickY    = barBounds.y + barBounds.height / 2;
+    int barRight = barBounds.x + barBounds.width;
+
+    // Inward: non-white pixels inside bar
+    bool foundInside = false;
+    for (int dx = 1; dx <= static_cast<int>(style.tickLength); ++dx) {
+        if (isNotWhite(buf[tickY * W + (barRight - dx)])) {
+            foundInside = true;
+            break;
+        }
+    }
+    REQUIRE(foundInside);
+
+    // Outside should be white
+    bool foundOutside = false;
+    for (int dx = 1; dx <= static_cast<int>(style.tickLength); ++dx) {
+        if (isNotWhite(buf[tickY * W + (barRight + dx)])) {
+            foundOutside = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(foundOutside);
+}
+
+TEST_CASE("drawTicks outward horizontal places ticks below bar", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 300, H = 150;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font        = font;
+    style.ticksInward = false;
+    style.tickLength  = 8.0f;
+
+    scibar::Rect barBounds{40, 30, 200, 20};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Horizontal);
+
+    // Midpoint tick at horizontal center of bar
+    int tickX     = barBounds.x + barBounds.width / 2;  // 140
+    int barBottom = barBounds.y + barBounds.height;      // 50
+
+    // Outward: non-white pixels below bar
+    bool foundBelow = false;
+    for (int dy = 1; dy <= static_cast<int>(style.tickLength); ++dy) {
+        if (isNotWhite(buf[(barBottom + dy) * W + tickX])) {
+            foundBelow = true;
+            break;
+        }
+    }
+    REQUIRE(foundBelow);
+
+    // Above should be white
+    bool foundAbove = false;
+    for (int dy = 1; dy <= static_cast<int>(style.tickLength); ++dy) {
+        if (isNotWhite(buf[(barBottom - dy) * W + tickX])) {
+            foundAbove = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(foundAbove);
+}
+
+TEST_CASE("drawTicks inward horizontal places ticks above bar", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 300, H = 150;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font        = font;
+    style.ticksInward = true;
+    style.tickLength  = 8.0f;
+
+    scibar::Rect barBounds{40, 30, 200, 20};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Horizontal);
+
+    int tickX     = barBounds.x + barBounds.width / 2;
+    int barBottom = barBounds.y + barBounds.height;
+
+    // Inward: non-white pixels above bar (inside)
+    bool foundAbove = false;
+    for (int dy = 1; dy <= static_cast<int>(style.tickLength); ++dy) {
+        if (isNotWhite(buf[(barBottom - dy) * W + tickX])) {
+            foundAbove = true;
+            break;
+        }
+    }
+    REQUIRE(foundAbove);
+
+    // Outside (below) should be white
+    bool foundBelow = false;
+    for (int dy = 1; dy <= static_cast<int>(style.tickLength); ++dy) {
+        if (isNotWhite(buf[(barBottom + dy) * W + tickX])) {
+            foundBelow = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(foundBelow);
+}
+
+TEST_CASE("drawSubTicks shows sub-ticks when enabled", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    // Major ticks at 0, 25, 50, 75, 100 → sub-tick at 10 is between 0 and 25
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {25.0f, "25"}, {50.0f, "50"}, {75.0f, "75"}, {100.0f, "100"}};
+    spec.subTicks   = {{10.0f}}; // explicit sub-tick at value 10
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font          = font;
+    style.showSubTicks  = true;
+    style.subTickLength = 6.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    // Sub-tick at value 10 → 10% from bottom (since vertical origin at top)
+    // fraction = 0.1, y = barBounds.y + barBounds.height - 0.1 * barBounds.height
+    int subTickY = barBounds.y + barBounds.height -
+                   static_cast<int>(0.1f * static_cast<float>(barBounds.height)); // 20 + 200 - 20 = 200
+    int barRight = barBounds.x + barBounds.width;
+
+    // Should find non-white pixel at the sub-tick line
+    bool found = false;
+    for (int dx = 1; dx <= static_cast<int>(style.subTickLength); ++dx) {
+        if (isNotWhite(buf[subTickY * W + (barRight + dx)])) {
+            found = true;
+            break;
+        }
+    }
+    REQUIRE(found);
+}
+
+TEST_CASE("drawSubTicks hidden when showSubTicks false", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.subTicks   = {{25.0f}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font          = font;
+    style.showSubTicks  = false;
+    style.subTickLength = 6.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    // Sub-tick at 25 → 75% from bottom
+    int subTickY = barBounds.y + barBounds.height -
+                   static_cast<int>(0.25f * static_cast<float>(barBounds.height));
+    int barRight = barBounds.x + barBounds.width;
+
+    // Should NOT find non-white pixels at the expected sub-tick position
+    bool found = false;
+    for (int dx = 1; dx <= static_cast<int>(style.subTickLength); ++dx) {
+        if (isNotWhite(buf[subTickY * W + (barRight + dx)])) {
+            found = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(found);
+}
+
+TEST_CASE("drawSubTicks inward places marks inside bar", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.subTicks   = {{30.0f}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font          = font;
+    style.ticksInward   = true;
+    style.showSubTicks  = true;
+    style.subTickLength = 6.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    // Sub-tick at 30 → 70% from bottom
+    int subTickY = barBounds.y + barBounds.height -
+                   static_cast<int>(0.3f * static_cast<float>(barBounds.height));
+    int barRight = barBounds.x + barBounds.width;
+
+    // Inward: non-white pixels inside bar
+    bool foundInside = false;
+    for (int dx = 1; dx <= static_cast<int>(style.subTickLength); ++dx) {
+        if (isNotWhite(buf[subTickY * W + (barRight - dx)])) {
+            foundInside = true;
+            break;
+        }
+    }
+    REQUIRE(foundInside);
+
+    // Outside should be white
+    bool foundOutside = false;
+    for (int dx = 1; dx <= static_cast<int>(style.subTickLength); ++dx) {
+        if (isNotWhite(buf[subTickY * W + (barRight + dx)])) {
+            foundOutside = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(foundOutside);
+}
+
+TEST_CASE("drawTicks renders label text near expected anchor", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 250, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{50.0f, "50"}}; // single label at midpoint
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font        = font;
+    style.tickLength  = 5.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    // Label anchor: (barRight + tickLength + 3, tickY)
+    // Text is left-aligned, alphabetic baseline → glyph extends right + up from anchor
+    int tickY    = barBounds.y + barBounds.height / 2;
+    int anchorX  = barBounds.x + barBounds.width + static_cast<int>(style.tickLength) + 3;
+
+    // Search a patch: anchorX..anchorX+20, tickY-14..tickY  (conservative glyph bounds)
+    int darkCount = 0;
+    for (int dy = -14; dy <= 0; ++dy) {
+        for (int dx = 0; dx <= 20; ++dx) {
+            int px = (tickY + dy) * W + (anchorX + dx);
+            if (px >= 0 && px < static_cast<int>(buf.size())) {
+                if (isDarkPixel(buf[px])) darkCount++;
+            }
+        }
+    }
+    // At least some dark pixels from glyph rendering
+    REQUIRE(darkCount > 3);
+}
+
+TEST_CASE("drawTicks label rendered in dark colors for light mode", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 250, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{50.0f, "50"}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font       = font;
+    style.tickLength = 5.0f;
+
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+
+    // Tick line pixel should be dark (near black)
+    int tickY    = barBounds.y + barBounds.height / 2;
+    int barRight = barBounds.x + barBounds.width;
+    int midTickX = barRight + static_cast<int>(style.tickLength) / 2;
+
+    REQUIRE(isDarkPixel(buf[tickY * W + midTickX]));
+}
+
+TEST_CASE("drawTicks label rendered in light colors for dark mode", "[draw][pixel]") {
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 250, H = 300;
+    // Use black canvas so white ticks are detectable
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFF000000);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{50.0f, "50"}};
+    spec.colormap   = scibar::ColorMapView(testColormap());
 
     scibar::Style style = scibar::Style::defaultDark();
-    style.font = font;
-    style.ticksInward = true;
+    style.font       = font;
+    style.tickLength = 5.0f;
 
-    scibar::Rect barBounds{50, 50, 40, 500};
+    scibar::Rect barBounds{40, 20, 30, 200};
+    scibar::drawTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
 
-    // Should not crash with vertical orientation
-    scibar::Rect resultV = scibar::drawTicks(cv, barBounds, spec, style,
-                                              scibar::Orientation::Vertical);
-    REQUIRE(resultV.width >= barBounds.width);
+    // Tick line pixel should be light (near white)
+    int tickY    = barBounds.y + barBounds.height / 2;
+    int barRight = barBounds.x + barBounds.width;
+    int midTickX = barRight + static_cast<int>(style.tickLength) / 2;
 
-    // Should not crash with horizontal orientation
-    scibar::Rect resultH = scibar::drawTicks(cv, barBounds, spec, style,
-                                              scibar::Orientation::Horizontal);
-    REQUIRE(resultH.height >= barBounds.height);
+    REQUIRE(isLightPixel(buf[tickY * W + midTickX], 100));
+}
 
-    // Sub-ticks inward should also not crash
-    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
-    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Horizontal);
+TEST_CASE("drawColorBar respects showFrame", "[draw][pixel]") {
+    auto cmap = testColormap();
+
+    const int W = 200, H = 300;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.colormap   = scibar::ColorMapView(cmap);
+
+    // --- With frame: top edge pixel should be non-white ---
+    scibar::Style styleFrame = scibar::Style::defaultLight();
+    styleFrame.showFrame  = true;
+    styleFrame.frameColor = scibar::Color{0, 0, 0, 255};
+
+    scibar::Rect bounds{40, 20, 30, 200};
+    scibar::drawColorBar(cv, bounds, spec, styleFrame);
+
+    // Frame line at top edge midpoint — anti-aliased black on white
+    int frameY = bounds.y;
+    int frameX = bounds.x + bounds.width / 2;
+    REQUIRE(isNotWhite(buf[frameY * W + frameX]));
+
+    // --- Without frame: a pixel just above the bar should be untouched white ---
+    std::vector<uint32_t> buf2(static_cast<size_t>(W) * H, 0xFFFFFFFF);
+    scibar::Canvas cv2{buf2.data(), W, H};
+
+    scibar::Style styleNoFrame = scibar::Style::defaultLight();
+    styleNoFrame.showFrame = false;
+
+    scibar::drawColorBar(cv2, bounds, spec, styleNoFrame);
+
+    // Pixel at (frameX, frameY - 1) is above bar — should remain white
+    REQUIRE(buf2[(frameY - 1) * W + frameX] == WHITE_PIXEL);
+}
+
+TEST_CASE("exportToSVG respects ticksInward in line direction", "[svg]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.colormap   = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.totalWidth     = 400;
+    opts.totalHeight    = 300;
+    opts.colorbarBounds = {100, 50, 40, 200};
+
+    // --- Outward ticks: vertical x2 > x1 ---
+    {
+        scibar::Style style = scibar::Style::defaultLight();
+        style.ticksInward = false;
+        std::string svg = scibar::exportToSVG(spec, style, opts,
+                                             scibar::Orientation::Vertical);
+        auto lines = extractSvgLines(svg);
+        REQUIRE(lines.size() >= 3); // at least 3 tick lines
+        for (const auto& l : lines) {
+            REQUIRE(l[2] > l[0]); // x2 > x1 (tick extends right)
+        }
+    }
+
+    // --- Inward ticks: vertical x2 < x1 ---
+    {
+        scibar::Style style = scibar::Style::defaultLight();
+        style.ticksInward = true;
+        std::string svg = scibar::exportToSVG(spec, style, opts,
+                                             scibar::Orientation::Vertical);
+        auto lines = extractSvgLines(svg);
+        REQUIRE(lines.size() >= 3);
+        for (const auto& l : lines) {
+            REQUIRE(l[2] < l[0]); // x2 < x1 (tick extends left)
+        }
+    }
+
+    // --- Outward ticks: horizontal y2 > y1 ---
+    {
+        scibar::Style style = scibar::Style::defaultLight();
+        style.ticksInward = false;
+        std::string svg = scibar::exportToSVG(spec, style, opts,
+                                             scibar::Orientation::Horizontal);
+        auto lines = extractSvgLines(svg);
+        REQUIRE(lines.size() >= 3);
+        for (const auto& l : lines) {
+            REQUIRE(l[3] > l[1]); // y2 > y1 (tick extends down)
+        }
+    }
+
+    // --- Inward ticks: horizontal y2 < y1 ---
+    {
+        scibar::Style style = scibar::Style::defaultLight();
+        style.ticksInward = true;
+        std::string svg = scibar::exportToSVG(spec, style, opts,
+                                             scibar::Orientation::Horizontal);
+        auto lines = extractSvgLines(svg);
+        REQUIRE(lines.size() >= 3);
+        for (const auto& l : lines) {
+            REQUIRE(l[3] < l[1]); // y2 < y1 (tick extends up)
+        }
+    }
+}
+
+TEST_CASE("exportToSVG label position unchanged by ticksInward", "[svg]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Linear;
+    spec.scale.min  = 0.0f;
+    spec.scale.max  = 100.0f;
+    spec.ticks      = {{0.0f, "0"}, {50.0f, "50"}, {100.0f, "100"}};
+    spec.colormap   = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.totalWidth     = 400;
+    opts.totalHeight    = 300;
+    opts.colorbarBounds = {100, 50, 40, 200};
+
+    // Collect text x positions with outward ticks
+    scibar::Style styleOut = scibar::Style::defaultLight();
+    styleOut.ticksInward = false;
+    std::string svgOut = scibar::exportToSVG(spec, styleOut, opts,
+                                            scibar::Orientation::Vertical);
+    auto textXOut = extractSvgTextX(svgOut);
+
+    // Collect text x positions with inward ticks
+    scibar::Style styleIn = scibar::Style::defaultLight();
+    styleIn.ticksInward = true;
+    std::string svgIn = scibar::exportToSVG(spec, styleIn, opts,
+                                           scibar::Orientation::Vertical);
+    auto textXIn = extractSvgTextX(svgIn);
+
+    // Label x positions must be identical regardless of tick direction
+    REQUIRE(textXOut.size() == textXIn.size());
+    REQUIRE(textXOut.size() >= 3);
+    for (size_t i = 0; i < textXOut.size(); ++i) {
+        REQUIRE(textXOut[i] == textXIn[i]);
+    }
 }
 
 TEST_CASE("drawColorBar diverging", "[draw]") {
