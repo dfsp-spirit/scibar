@@ -102,6 +102,7 @@ Thanks heaps to the authors of these great software packages that scibar is buil
   url       = {https://www.youtube.com/watch?v=xAoljeRJ3lU}
 }
 ```
+* the embedded **Inter** font by Rasmus Andersson, https://rsms.me/inter/ — SIL Open Font License
 
 And of course, thanks to the authors of the dependencies of these packages, and their dependencies...
 
@@ -109,6 +110,8 @@ Our [full example applications](./examples/) use these additional tools:
 
 * the `batlow` colormap by Fabio Crameri, https://www.fabiocrameri.ch/colourmaps/
 * the toml++ header only library by Mark Gillard, https://github.com/marzer/tomlplusplus
+* the **Libertinus Serif** font (used in the `examples/custom_font/` example, not part of the library) by Philipp H. Poll and the Libertinus project, https://github.com/alerque/libertinus — SIL Open Font License
+
 
 Once more, thank you!
 
