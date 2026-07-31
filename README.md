@@ -33,9 +33,9 @@ scibar is a single-file, header only, C++17 library for plotting color bars to b
 
 ## Documentation
 
-- 📖 [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
-- 🚀 [Getting Started Guide](docs/GETTING_STARTED.md) — quick start and core concepts
-- ❓ [FAQ](docs/FAQ.md) — common questions about colormap direction, ticks, layout, and more
+- [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
+- [Getting Started Guide](docs/GETTING_STARTED.md) — quick start and core concepts
+- [FAQ](docs/FAQ.md) — common questions about colormap direction, ticks, layout, and more
 
 
 ## Quick Start
