@@ -1,0 +1,36 @@
+# scibar CLI demo — default configuration
+# All values can be overridden via command-line flags.
+
+[output]
+format   = "both"       # "png", "svg", or "both"
+filename = "colorbar"   # written to the current working directory
+
+[canvas]
+width  = 800
+height = 300
+
+[scale]
+type     = "linear"     # "linear", "log", "categorical", "diverging"
+min      = 0.0
+max      = 100.0
+midpoint = 50.0         # only meaningful for "diverging"
+inverted = false
+
+[colormap]
+name    = "viridis"     # "viridis" or "vik"
+reverse = false
+
+[orientation]
+direction = "vertical"  # "vertical" or "horizontal"
+
+[title]
+text = "Value"
+
+[style]
+theme           = "light"
+font_size       = 14.0
+tick_length     = 5.0
+tick_precision  = 2
+subticks        = 4
+show_frame      = true
+ticks_inward    = false
