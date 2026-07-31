@@ -67,12 +67,7 @@ int main() {
     drawLegend(canvas, spec, Style::defaultLight());
 
     // 4. Save as PPM (or PNG with stb_image_write)
-    std::ofstream out("colorbar.ppm");
-    out << "P3\n" << W << " " << H << "\n255\n";
-    for (int i = 0; i < W * H; ++i) {
-        Color c = Color::fromHex(buf[i]);
-        out << int(c.r) << " " << int(c.g) << " " << int(c.b) << "\n";
-    }
+    writePPM(canvas, "colorbar.ppm");
 
     return 0;
 }
