@@ -595,12 +595,13 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
         cv.set_line_width(1.0f);
 
         if (isVertical) {
-            // Vertical: ticks to the right, labels left-aligned
+            // Vertical: ticks to the right (or left if ticksInward), labels left-aligned
             float y = static_cast<float>(barBounds.y + barBounds.height) -
                       fraction * static_cast<float>(barBounds.height);
+            float tickDir = style.ticksInward ? -1.0f : 1.0f;
 
             cv.move_to(static_cast<float>(barBounds.x + barBounds.width), y);
-            cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + style.tickLength, y);
+            cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + tickDir * style.tickLength, y);
             cv.stroke();
 
             setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
@@ -619,12 +620,13 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
                 totalBounds.width = rightExtent - totalBounds.x;
             }
         } else {
-            // Horizontal: ticks below, labels centered
+            // Horizontal: ticks below (or above if ticksInward), labels centered
             float x = static_cast<float>(barBounds.x) +
                       fraction * static_cast<float>(barBounds.width);
+            float tickDir = style.ticksInward ? -1.0f : 1.0f;
 
             cv.move_to(x, static_cast<float>(barBounds.y + barBounds.height));
-            cv.line_to(x, static_cast<float>(barBounds.y + barBounds.height) + style.tickLength);
+            cv.line_to(x, static_cast<float>(barBounds.y + barBounds.height) + tickDir * style.tickLength);
             cv.stroke();
 
             setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
@@ -688,6 +690,8 @@ Rect drawSubTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style&
     setCanvasColor(cv, canvas_ity::stroke_style, style.tickColor);
     cv.set_line_width(1.0f);
 
+    float subTickDir = style.ticksInward ? -1.0f : 1.0f;
+
     for (const auto& st : *subTicks) {
         float fraction = 0.0f;
 
@@ -707,13 +711,13 @@ Rect drawSubTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style&
             float y = static_cast<float>(barBounds.y + barBounds.height) -
                       fraction * static_cast<float>(barBounds.height);
             cv.move_to(static_cast<float>(barBounds.x + barBounds.width), y);
-            cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + style.subTickLength, y);
+            cv.line_to(static_cast<float>(barBounds.x + barBounds.width) + subTickDir * style.subTickLength, y);
             cv.stroke();
         } else {
             float x = static_cast<float>(barBounds.x) +
                       fraction * static_cast<float>(barBounds.width);
             cv.move_to(x, static_cast<float>(barBounds.y + barBounds.height));
-            cv.line_to(x, static_cast<float>(barBounds.y + barBounds.height) + style.subTickLength);
+            cv.line_to(x, static_cast<float>(barBounds.y + barBounds.height) + subTickDir * style.subTickLength);
             cv.stroke();
         }
     }
@@ -940,8 +944,9 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
             if (isVertical) {
                 float y = static_cast<float>(cb.y + cb.height) -
                           fraction * static_cast<float>(cb.height);
+                float tickDir = style.ticksInward ? -1.0f : 1.0f;
                 float tickStartX = static_cast<float>(cb.x + cb.width);
-                float tickEndX = tickStartX + style.tickLength;
+                float tickEndX = tickStartX + tickDir * style.tickLength;
                 svg << "  <line x1=\"" << tickStartX << "\" y1=\"" << y
                     << "\" x2=\"" << tickEndX << "\" y2=\"" << y
                     << "\" stroke=\"rgb("
@@ -949,7 +954,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.tickColor.g) << ","
                     << static_cast<int>(style.tickColor.b)
                     << ")\" stroke-width=\"1\" />\n";
-                float labelX = tickEndX + 3.0f;
+                float labelX = tickStartX + style.tickLength + 3.0f;
                 svg << "  <text x=\"" << labelX << "\" y=\"" << y
                     << "\" font-family=\"Inter, sans-serif\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
@@ -961,8 +966,9 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
             } else {
                 float x = static_cast<float>(cb.x) +
                           fraction * static_cast<float>(cb.width);
+                float tickDir = style.ticksInward ? -1.0f : 1.0f;
                 float tickStartY = static_cast<float>(cb.y + cb.height);
-                float tickEndY = tickStartY + style.tickLength;
+                float tickEndY = tickStartY + tickDir * style.tickLength;
                 svg << "  <line x1=\"" << x << "\" y1=\"" << tickStartY
                     << "\" x2=\"" << x << "\" y2=\"" << tickEndY
                     << "\" stroke=\"rgb("
@@ -970,7 +976,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.tickColor.g) << ","
                     << static_cast<int>(style.tickColor.b)
                     << ")\" stroke-width=\"1\" />\n";
-                float labelY = tickEndY + style.font.size + 2.0f;
+                float labelY = tickStartY + style.tickLength + style.font.size + 2.0f;
                 svg << "  <text x=\"" << x << "\" y=\"" << labelY
                     << "\" font-family=\"Inter, sans-serif\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
@@ -1006,11 +1012,13 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
 
             if (spec.scale.inverted) fraction = 1.0f - fraction;
 
+            float subTickDir = style.ticksInward ? -1.0f : 1.0f;
+
             if (isVertical) {
                 float y = static_cast<float>(cb.y + cb.height) -
                           fraction * static_cast<float>(cb.height);
                 float tickStartX = static_cast<float>(cb.x + cb.width);
-                float tickEndX = tickStartX + style.subTickLength;
+                float tickEndX = tickStartX + subTickDir * style.subTickLength;
                 svg << "  <line x1=\"" << tickStartX << "\" y1=\"" << y
                     << "\" x2=\"" << tickEndX << "\" y2=\"" << y
                     << "\" stroke=\"rgb("
@@ -1022,7 +1030,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                 float x = static_cast<float>(cb.x) +
                           fraction * static_cast<float>(cb.width);
                 float tickStartY = static_cast<float>(cb.y + cb.height);
-                float tickEndY = tickStartY + style.subTickLength;
+                float tickEndY = tickStartY + subTickDir * style.subTickLength;
                 svg << "  <line x1=\"" << x << "\" y1=\"" << tickStartY
                     << "\" x2=\"" << x << "\" y2=\"" << tickEndY
                     << "\" stroke=\"rgb("

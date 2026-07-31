@@ -120,12 +120,13 @@ struct Style {
     Color textColor     = Color::fromHex(0x000000FF);
     Font  font;
 
-    float tickLength         = 5.0f;  // Outward tick mark length in pixels
+    float tickLength         = 5.0f;  // Tick mark length in pixels (direction controlled by ticksInward)
     float subTickLength      = 3.0f;  // Sub-tick mark length in pixels (shorter than tickLength)
     int   tickPrecision      = 6;     // Significant digits for auto-generated tick labels (%.*g)
     int   subTicksPerInterval = 4;    // Number of sub-ticks between major ticks (linear/diverging only)
     bool  showSubTicks       = true;  // If false, sub-ticks are not drawn
     bool  reverseColors      = false; // If true, flip colormap direction (low→high becomes high→low)
+    bool  ticksInward        = false; // If true, tick marks point inside the colorbar instead of outside
 
     static Style defaultLight();
     static Style defaultDark();

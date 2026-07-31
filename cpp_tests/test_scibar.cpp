@@ -349,6 +349,55 @@ TEST_CASE("generateTicks diverging", "[ticks]") {
     REQUIRE(hasMidpoint);
 }
 
+TEST_CASE("ticksInward", "[style]") {
+    // Default is outward
+    {
+        scibar::Style s = scibar::Style::defaultLight();
+        REQUIRE(s.ticksInward == false);
+    }
+
+    // Verify it can be set to true
+    {
+        scibar::Style s = scibar::Style::defaultLight();
+        s.ticksInward = true;
+        REQUIRE(s.ticksInward == true);
+    }
+}
+
+TEST_CASE("drawTicks inward does not crash and produces bounds", "[draw]") {
+    auto cmap = testColormap();
+    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+
+    const int W = 400, H = 600;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
+    scibar::Canvas cv{buf.data(), W, H};
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::Style style = scibar::Style::defaultDark();
+    style.font = font;
+    style.ticksInward = true;
+
+    scibar::Rect barBounds{50, 50, 40, 500};
+
+    // Should not crash with vertical orientation
+    scibar::Rect resultV = scibar::drawTicks(cv, barBounds, spec, style,
+                                              scibar::Orientation::Vertical);
+    REQUIRE(resultV.width >= barBounds.width);
+
+    // Should not crash with horizontal orientation
+    scibar::Rect resultH = scibar::drawTicks(cv, barBounds, spec, style,
+                                              scibar::Orientation::Horizontal);
+    REQUIRE(resultH.height >= barBounds.height);
+
+    // Sub-ticks inward should also not crash
+    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Vertical);
+    scibar::drawSubTicks(cv, barBounds, spec, style, scibar::Orientation::Horizontal);
+}
+
 TEST_CASE("drawColorBar diverging", "[draw]") {
     auto cmap = scibar::util::vik();
 
