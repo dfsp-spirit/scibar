@@ -17,6 +17,20 @@ scibar is a single-file, header only, C++17 library for plotting color bars to b
 ![colorbar gallery](web/gallery.png)
 
 
+## Features
+
+- **Four scale types** — Linear, logarithmic, diverging, and categorical (qualitative) data scales
+- **Built-in colormaps** — viridis (sequential) and vik (diverging), plus custom `std::vector<Color>` colormaps
+- **Vector & raster output** — clean SVG with linear gradients, plus PPM (zero-dependency) and PNG (via stb)
+- **Horizontal & vertical** — both orientations with independent layout control
+- **Auto-generated ticks** — smart major and minor tick generation with configurable precision, plus custom tick labels
+- **Colormap direction** — independently toggle axis inversion and colormap reversal
+- **Light & dark themes** — `Style::defaultLight()` and `Style::defaultDark()`, fully customizable
+- **Embedded font** — Inter Regular baked in, zero-config; drop in any `.ttf` for custom fonts
+- **Two API levels** — `drawLegend()` for rapid prototyping, low-level `drawColorBar`/`drawTicks`/`drawTitle` for full control
+- **Tick styling** — inward/outward ticks, sub-ticks on/off, configurable lengths
+
+
 ## Documentation
 
 - 📖 [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
