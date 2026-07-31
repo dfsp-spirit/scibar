@@ -1,0 +1,24 @@
+# Aggregator: build all scibar examples from the top-level project.
+# Each example subdirectory contains its own CMakeLists.txt with the
+# actual executable definition.
+
+add_subdirectory(categorical_horizontal)
+add_subdirectory(categorical_horizontal_axisinversed)
+add_subdirectory(categorical_horizontal_axisinversed_reversed)
+add_subdirectory(categorical_horizontal_reversed)
+add_subdirectory(categorical_vertical)
+add_subdirectory(categorical_vertical_reversed)
+add_subdirectory(custom_font)
+add_subdirectory(diverging_horizontal_vik)
+add_subdirectory(diverging_horizontal_vik_axisinversed)
+add_subdirectory(diverging_horizontal_vik_reversed)
+add_subdirectory(diverging_vertical_vik)
+add_subdirectory(diverging_vertical_vik_reversed)
+add_subdirectory(linear_horizontal_viridis)
+add_subdirectory(linear_horizontal_viridis_reversed)
+add_subdirectory(linear_vertical_viridis)
+add_subdirectory(linear_vertical_viridis_reversed)
+add_subdirectory(logarithmic_horizontal_viridis)
+add_subdirectory(logarithmic_horizontal_viridis_reversed)
+add_subdirectory(logarithmic_vertical_viridis)
+add_subdirectory(logarithmic_vertical_viridis_reversed)
