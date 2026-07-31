@@ -1,5 +1,5 @@
-/// scibar minimal example — horizontal colorbar to PPM (no external deps).
-/// This is the shortest runnable example; ideal for the README.
+/// scibar minimal low-level example — horizontal colorbar to PPM (no external deps).
+/// Uses the low-level API (drawColorBar, drawTicks, drawSubTicks, drawTitle).
 
 #define SCIBAR_IMPLEMENTATION
 #include "../../src/core/scibar.hpp"

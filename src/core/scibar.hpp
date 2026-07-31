@@ -35545,13 +35545,13 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
     int titleHeight = 40;
     int barWidth = canvas.width / 6;
     int barHeight = canvas.height - titleHeight - marginX;
-    int barX = marginX;
+    int barX = (canvas.width - barWidth) / 2;
     int barY = titleHeight;
 
     LayoutResult result;
 
-    // Title — centered above the colorbar, not the entire canvas
-    Rect titleRect{barX, 0, barWidth, titleHeight};
+    // Title — centered above the colorbar, using full canvas width to avoid clipping
+    Rect titleRect{0, 0, canvas.width, titleHeight};
     Rect actualTitle = drawTitle(canvas, titleRect, spec.title, style);
 
     // Color bar
@@ -35806,7 +35806,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
 
     // Title
     if (!spec.title.empty()) {
-        int titleX = cb.x + cb.width / 2;
+        int titleX = options.totalWidth / 2;
         int titleY = isVertical ? (cb.y - 10) : (cb.y - 15);
         svg << "  <text x=\"" << titleX << "\" y=\"" << titleY
             << "\" font-family=\"Inter, sans-serif\" font-size=\""
