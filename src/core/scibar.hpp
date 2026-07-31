@@ -96,6 +96,21 @@ struct Color {
                  uint8_t(b * 255.0f + 0.5f), uint8_t(a * 255.0f + 0.5f) };
     }
 
+    /// @brief Create a Color from a packed uint32_t in Canvas RGBA byte order
+    /// (byte 0 = R, byte 1 = G, byte 2 = B, byte 3 = A).
+    ///
+    /// This is the correct way to read a pixel from a Canvas buffer. Unlike
+    /// fromHex() which expects `0xRRGGBBAA` (big-endian bytes), canvas pixels
+    /// are stored in little-endian `0xAABBGGRR` order.
+    /// @param packed A uint32_t from `Canvas::pixels[]`.
+    /// @return The corresponding Color with correct channel mapping.
+    static constexpr Color fromPackedRGBA(uint32_t packed) {
+        return { uint8_t(packed & 0xFF),
+                 uint8_t((packed >> 8)  & 0xFF),
+                 uint8_t((packed >> 16) & 0xFF),
+                 uint8_t((packed >> 24) & 0xFF) };
+    }
+
     /// @brief Convert to float representation (ColorF) for interop with
     /// float-based libraries.
     /// @return A ColorF with all channels in [0.0, 1.0].
@@ -443,6 +458,18 @@ std::string exportToSVG(const Spec& spec,
                         const SVGOptions& options = {},
                         Orientation orientation = Orientation::Vertical);
 
+// --- Raster output ---
+
+/// @brief Write a Canvas as a PPM (Netpbm P3) image file.
+///
+/// PPM is a plain-text, zero-dependency format readable by virtually all
+/// image tools (ImageMagick, GIMP, browsers via convert, etc.). Use this
+/// when you want a quick raster output without linking stb_image_write.
+/// @param canvas The rendered pixel buffer.
+/// @param path   Output file path (e.g., "colorbar.ppm").
+/// @return true on success, false on failure.
+bool writePPM(const Canvas& canvas, const char* path);
+
 } // namespace scibar
 
 // =========================================================================
@@ -777,6 +804,7 @@ inline std::vector<scibar::Color> vik() {
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <fstream>
 #include <sstream>
 #include <unordered_map>
 
@@ -35793,6 +35821,22 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
 
     svg << "</svg>\n";
     return svg.str();
+}
+
+// =========================================================================
+// writePPM
+// =========================================================================
+
+bool writePPM(const Canvas& canvas, const char* path) {
+    std::ofstream out(path);
+    if (!out) return false;
+
+    out << "P3\n" << canvas.width << " " << canvas.height << "\n255\n";
+    for (int i = 0, n = canvas.width * canvas.height; i < n; ++i) {
+        Color c = Color::fromPackedRGBA(canvas.pixels[i]);
+        out << int(c.r) << " " << int(c.g) << " " << int(c.b) << "\n";
+    }
+    return out.good();
 }
 
 } // namespace scibar

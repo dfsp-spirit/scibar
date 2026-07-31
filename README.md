@@ -21,9 +21,13 @@ scibar is a single-file, header only, C++17 library for plotting color bars to b
 - ❓ [FAQ](docs/FAQ.md) — common questions about colormap direction, ticks, layout, and more
 
 
-## Usage
+## Quick Start
 
-Not yet, this is work in progress.
+
+![minimal colorbar](web/example_outputs/minimal/colorbar.png)
+
+See [here](./examples/minimal/) for the source code to generate this image.
+
 
 
 ## Acknowledgements
