@@ -4,12 +4,21 @@ colorbars for the masses, in c++
 
 <!-- badges: start -->
   [![tests_cpp](https://github.com/dfsp-spirit/scibar/actions/workflows/unittests.yml/badge.svg?branch=main)](https://github.com/dfsp-spirit/scibar/actions)
+  [![examples_cpp](https://github.com/dfsp-spirit/scibar/actions/workflows/examples.yml/badge.svg?branch=main)](https://github.com/dfsp-spirit/scibar/actions)
+  [![Docs](https://github.com/dfsp-spirit/scibar/actions/workflows/docs.yml/badge.svg?branch=main)](https://dfsp-spirit.github.io/scibar/)
 <!-- badges: end -->
 
 
 ## About
 
 scibar is a single-file, header only, C++17 library for plotting color bars to both vector and raster images, geared towards scientific visualization. It is also the natural fit for [scimesh](https://github.com/dfsp-spirit/scimesh).
+
+
+## Documentation
+
+- 📖 [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
+- 🚀 [Getting Started Guide](docs/GETTING_STARTED.md) — quick start and core concepts
+- ❓ [FAQ](docs/FAQ.md) — common questions about colormap direction, ticks, layout, and more
 
 
 ## Usage
