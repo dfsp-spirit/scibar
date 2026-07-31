@@ -168,9 +168,9 @@ TEST_CASE("Style defaults", "[style]") {
     REQUIRE(dark.frameColor.b == 0xFF);
 }
 
-TEST_CASE("loadFont and metrics", "[font]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
-    REQUIRE(font.handle != nullptr);
+TEST_CASE("embedded font metrics", "[font]") {
+    scibar::Font font;  // uses embedded Inter font
+    REQUIRE(font.handle == nullptr);
     REQUIRE(font.size == 14.0f);
 
     auto metrics = scibar::fontMetrics(font);
@@ -181,7 +181,7 @@ TEST_CASE("loadFont and metrics", "[font]") {
 }
 
 TEST_CASE("measureText", "[font]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     auto dims = scibar::measureText("Hello", font);
     REQUIRE(dims[0] > 0.0f);  // width
@@ -189,7 +189,7 @@ TEST_CASE("measureText", "[font]") {
 }
 
 TEST_CASE("textAdvance", "[font]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     // Advance up to "He" should be roughly half of "Hello"
     float advance2  = scibar::textAdvance(font, "Hello", 2);
@@ -202,7 +202,7 @@ TEST_CASE("textAdvance", "[font]") {
 }
 
 TEST_CASE("codepointAdvance", "[font]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     float adv = scibar::codepointAdvance(font, 'A', 'V');
     REQUIRE(adv > 0.0f);
@@ -308,7 +308,7 @@ TEST_CASE("drawColorBar basic", "[draw]") {
 
 TEST_CASE("drawTitle basic", "[draw]") {
     auto cmap = testColormap();
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 400, H = 100;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
@@ -330,7 +330,7 @@ TEST_CASE("drawTitle basic", "[draw]") {
 
 TEST_CASE("drawTicks basic", "[draw]") {
     auto cmap = testColormap();
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 400, H = 600;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
@@ -354,7 +354,7 @@ TEST_CASE("drawTicks basic", "[draw]") {
 
 TEST_CASE("drawLegend basic", "[draw]") {
     auto cmap = testColormap();
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 300, H = 600;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0);
@@ -455,7 +455,7 @@ TEST_CASE("ticksInward", "[style]") {
 }
 
 TEST_CASE("drawTicks outward places tick line outside bar", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 200, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF); // white
@@ -502,7 +502,7 @@ TEST_CASE("drawTicks outward places tick line outside bar", "[draw][pixel]") {
 }
 
 TEST_CASE("drawTicks inward places tick line inside bar", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 200, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, WHITE_PIXEL);
@@ -548,7 +548,7 @@ TEST_CASE("drawTicks inward places tick line inside bar", "[draw][pixel]") {
 }
 
 TEST_CASE("drawTicks outward horizontal places ticks below bar", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 300, H = 150;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -595,7 +595,7 @@ TEST_CASE("drawTicks outward horizontal places ticks below bar", "[draw][pixel]"
 }
 
 TEST_CASE("drawTicks inward horizontal places ticks above bar", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 300, H = 150;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -641,7 +641,7 @@ TEST_CASE("drawTicks inward horizontal places ticks above bar", "[draw][pixel]")
 }
 
 TEST_CASE("drawSubTicks shows sub-ticks when enabled", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 200, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -682,7 +682,7 @@ TEST_CASE("drawSubTicks shows sub-ticks when enabled", "[draw][pixel]") {
 }
 
 TEST_CASE("drawSubTicks hidden when showSubTicks false", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 200, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -721,7 +721,7 @@ TEST_CASE("drawSubTicks hidden when showSubTicks false", "[draw][pixel]") {
 }
 
 TEST_CASE("drawSubTicks inward places marks inside bar", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 200, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -771,7 +771,7 @@ TEST_CASE("drawSubTicks inward places marks inside bar", "[draw][pixel]") {
 }
 
 TEST_CASE("drawTicks renders label text near expected anchor", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 250, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -813,7 +813,7 @@ TEST_CASE("drawTicks renders label text near expected anchor", "[draw][pixel]") 
 TEST_CASE("drawTicks empty label produces no glyph pixels", "[draw][pixel]") {
     // Negative control: without a label, the label patch should have negligible
     // dark pixels (at most tick-line anti-aliasing bleed, much less than a glyph).
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 250, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, WHITE_PIXEL);
@@ -850,7 +850,7 @@ TEST_CASE("drawTicks empty label produces no glyph pixels", "[draw][pixel]") {
 }
 
 TEST_CASE("drawTicks label rendered in dark colors for light mode", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 250, H = 300;
     std::vector<uint32_t> buf(static_cast<size_t>(W) * H, 0xFFFFFFFF);
@@ -879,7 +879,7 @@ TEST_CASE("drawTicks label rendered in dark colors for light mode", "[draw][pixe
 }
 
 TEST_CASE("drawTicks label rendered in light colors for dark mode", "[draw][pixel]") {
-    auto font = scibar::loadFont("../fonts/Inter-Regular.ttf", 14.0f);
+    scibar::Font font;  // uses embedded Inter font
 
     const int W = 250, H = 300;
     // Use black canvas so white ticks are detectable
