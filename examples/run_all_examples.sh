@@ -25,6 +25,15 @@ declare -A EXAMPLES=(
     ["logarithmic_horizontal_viridis"]="logarithmic_horizontal_viridis:logarithmic_horizontal_example"
     ["categorical_vertical"]="categorical_vertical:categorical_vertical_example"
     ["categorical_horizontal"]="categorical_horizontal:categorical_horizontal_example"
+    # Reversed variants
+    ["linear_horizontal_viridis_reversed"]="linear_horizontal_viridis_reversed:viridis_horizontal_reversed_example"
+    ["linear_vertical_viridis_reversed"]="linear_vertical_viridis_reversed:viridis_vertical_reversed_example"
+    ["diverging_horizontal_vik_reversed"]="diverging_horizontal_vik_reversed:vik_horizontal_reversed_example"
+    ["diverging_vertical_vik_reversed"]="diverging_vertical_vik_reversed:vik_vertical_reversed_example"
+    ["logarithmic_vertical_viridis_reversed"]="logarithmic_vertical_viridis_reversed:log_vertical_reversed_example"
+    ["logarithmic_horizontal_viridis_reversed"]="logarithmic_horizontal_viridis_reversed:log_horizontal_reversed_example"
+    ["categorical_vertical_reversed"]="categorical_vertical_reversed:categorical_vertical_reversed_example"
+    ["categorical_horizontal_reversed"]="categorical_horizontal_reversed:categorical_horizontal_reversed_example"
 )
 
 SUCCESSES=0

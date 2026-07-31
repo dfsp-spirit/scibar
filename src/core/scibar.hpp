@@ -114,6 +114,7 @@ struct Style {
 
     float tickLength    = 5.0f;  // Outward tick mark length in pixels
     int   tickPrecision = 6;     // Significant digits for auto-generated tick labels (%.*g)
+    bool  reversed      = false; // If true, flip colormap direction (low→high becomes high→low)
 
     static Style defaultLight();
     static Style defaultDark();

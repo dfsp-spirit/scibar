@@ -439,3 +439,162 @@ TEST_CASE("exportToSVG categorical", "[svg]") {
     REQUIRE(svg.find("<rect") != std::string::npos);
     REQUIRE(svg.find("</svg>") != std::string::npos);
 }
+
+TEST_CASE("drawColorBar reversed continuous", "[draw][reverse]") {
+    auto cmap = testColormap();
+
+    const int W = 200, H = 600;
+    auto makeBuf = [&]() {
+        std::vector<uint32_t> b(static_cast<size_t>(W) * H, 0);
+        return b;
+    };
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    // Forward
+    auto fwdBuf = makeBuf();
+    scibar::Canvas fwdCv{fwdBuf.data(), W, H};
+    scibar::Style fwdStyle = scibar::Style::defaultDark();
+    fwdStyle.reversed = false;
+    scibar::Rect bounds{50, 50, 40, 500};
+    scibar::drawColorBar(fwdCv, bounds, spec, fwdStyle);
+
+    // Reversed
+    auto revBuf = makeBuf();
+    scibar::Canvas revCv{revBuf.data(), W, H};
+    scibar::Style revStyle = scibar::Style::defaultDark();
+    revStyle.reversed = true;
+    scibar::drawColorBar(revCv, bounds, spec, revStyle);
+
+    // Top and bottom of forward bar should differ from each other
+    int topY = 60, botY = 530, midX = 70;
+    REQUIRE(fwdBuf[topY * W + midX] != fwdBuf[botY * W + midX]);
+
+    // Top and bottom of reversed bar should differ from each other
+    REQUIRE(revBuf[topY * W + midX] != revBuf[botY * W + midX]);
+
+    // Reversed bar should swap the color order: fwd top ≠ rev top, fwd bot ≠ rev bot
+    REQUIRE(fwdBuf[topY * W + midX] != revBuf[topY * W + midX]);
+    REQUIRE(fwdBuf[botY * W + midX] != revBuf[botY * W + midX]);
+}
+
+TEST_CASE("drawColorBar reversed categorical", "[draw][reverse]") {
+    std::vector<scibar::Color> catCmap = {
+        scibar::Color{255, 0, 0, 255},
+        scibar::Color{0, 255, 0, 255},
+        scibar::Color{0, 0, 255, 255},
+    };
+
+    const int W = 100, H = 300;
+    auto makeBuf = [&]() {
+        std::vector<uint32_t> b(static_cast<size_t>(W) * H, 0);
+        return b;
+    };
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Categorical;
+    spec.colormap = scibar::ColorMapView(catCmap);
+
+    // Forward
+    auto fwdBuf = makeBuf();
+    scibar::Canvas fwdCv{fwdBuf.data(), W, H};
+    scibar::Style fwdStyle = scibar::Style::defaultDark();
+    fwdStyle.reversed = false;
+    scibar::Rect bounds{25, 0, 50, 300};
+    scibar::drawColorBar(fwdCv, bounds, spec, fwdStyle);
+
+    // Reversed
+    auto revBuf = makeBuf();
+    scibar::Canvas revCv{revBuf.data(), W, H};
+    scibar::Style revStyle = scibar::Style::defaultDark();
+    revStyle.reversed = true;
+    scibar::drawColorBar(revCv, bounds, spec, revStyle);
+
+    // Top block of forward (red) should match bottom block of reversed (red)
+    int midX = 50;
+    int topY = 50, midY = 150, botY = 250;
+    REQUIRE(fwdBuf[topY * W + midX] == revBuf[botY * W + midX]);  // fwd top = rev bottom
+    REQUIRE(fwdBuf[botY * W + midX] == revBuf[topY * W + midX]);  // fwd bottom = rev top
+    // Middle should stay the same (it's the middle category)
+    REQUIRE(fwdBuf[midY * W + midX] == revBuf[midY * W + midX]);
+}
+
+TEST_CASE("exportToSVG reversed continuous", "[svg][reverse]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 100.0f;
+    spec.title = "Value";
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.colorbarBounds = {50, 50, 40, 500};
+
+    // Forward: y1="1" ... y2="0" (top-to-bottom gradient)
+    scibar::Style fwdStyle = scibar::Style::defaultLight();
+    fwdStyle.reversed = false;
+    std::string fwdSvg = scibar::exportToSVG(spec, fwdStyle, opts);
+
+    // Reversed: y1="0" ... y2="1" (bottom-to-top gradient)
+    scibar::Style revStyle = scibar::Style::defaultLight();
+    revStyle.reversed = true;
+    std::string revSvg = scibar::exportToSVG(spec, revStyle, opts);
+
+    // Forward has y1="1" (gradient starts at bottom), reversed has y1="0" (starts at top)
+    REQUIRE(fwdSvg.find("y1=\"1\"") != std::string::npos);
+    REQUIRE(revSvg.find("y1=\"0\"") != std::string::npos);
+}
+
+TEST_CASE("exportToSVG reversed horizontal", "[svg][reverse]") {
+    auto cmap = testColormap();
+
+    scibar::Spec spec;
+    spec.scale.min = 0.0f;
+    spec.scale.max = 1.0f;
+    spec.colormap = scibar::ColorMapView(cmap);
+
+    scibar::SVGOptions opts;
+    opts.colorbarBounds = {50, 50, 500, 40};
+
+    // Forward: x1="0" ... x2="1" (left-to-right)
+    scibar::Style fwdStyle = scibar::Style::defaultLight();
+    fwdStyle.reversed = false;
+    std::string fwdSvg = scibar::exportToSVG(spec, fwdStyle, opts,
+                                               scibar::Orientation::Horizontal);
+
+    // Reversed: x1="1" ... x2="0" (right-to-left)
+    scibar::Style revStyle = scibar::Style::defaultLight();
+    revStyle.reversed = true;
+    std::string revSvg = scibar::exportToSVG(spec, revStyle, opts,
+                                               scibar::Orientation::Horizontal);
+
+    // Forward has x1="0" (gradient starts at left), reversed has x1="1" (starts at right)
+    REQUIRE(fwdSvg.find("x1=\"0\"") != std::string::npos);
+    REQUIRE(revSvg.find("x1=\"1\"") != std::string::npos);
+}
+
+TEST_CASE("exportToSVG reversed categorical", "[svg][reverse]") {
+    std::vector<scibar::Color> catCmap = {
+        scibar::Color{255, 0, 0, 255},
+        scibar::Color{0, 255, 0, 255},
+        scibar::Color{0, 0, 255, 255},
+    };
+
+    scibar::Spec spec;
+    spec.scale.type = scibar::ScaleType::Categorical;
+    spec.colormap = scibar::ColorMapView(catCmap);
+
+    scibar::Style revStyle = scibar::Style::defaultLight();
+    revStyle.reversed = true;
+    std::string svg = scibar::exportToSVG(spec, revStyle);
+
+    // First rect should be blue (last color in colormap when reversed)
+    size_t firstRect = svg.find("<rect");
+    REQUIRE(firstRect != std::string::npos);
+    // blue = rgb(0,0,255)
+    REQUIRE(svg.find("rgb(0,0,255)", firstRect) != std::string::npos);
+}

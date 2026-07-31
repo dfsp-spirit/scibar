@@ -393,7 +393,8 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
         if (isVertical) {
             float blockH = static_cast<float>(bounds.height) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                const Color& c = spec.colormap.data[i];
+                size_t idx = style.reversed ? (spec.colormap.size - 1 - i) : i;
+                const Color& c = spec.colormap.data[idx];
                 float y0 = static_cast<float>(bounds.y) + static_cast<float>(i) * blockH;
                 float y1 = y0 + blockH + 0.5f;
                 setCanvasColor(cv, canvas_ity::fill_style, c);
@@ -403,7 +404,8 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
         } else {
             float blockW = static_cast<float>(bounds.width) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                const Color& c = spec.colormap.data[i];
+                size_t idx = style.reversed ? (spec.colormap.size - 1 - i) : i;
+                const Color& c = spec.colormap.data[idx];
                 float x0 = static_cast<float>(bounds.x) + static_cast<float>(i) * blockW;
                 float x1 = x0 + blockW + 0.5f;
                 setCanvasColor(cv, canvas_ity::fill_style, c);
@@ -413,17 +415,33 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
         }
     } else {
         if (isVertical) {
-            cv.set_linear_gradient(canvas_ity::fill_style,
-                                   static_cast<float>(bounds.x),
-                                   static_cast<float>(bounds.y + bounds.height),
-                                   static_cast<float>(bounds.x),
-                                   static_cast<float>(bounds.y));
+            if (style.reversed) {
+                cv.set_linear_gradient(canvas_ity::fill_style,
+                                       static_cast<float>(bounds.x),
+                                       static_cast<float>(bounds.y),
+                                       static_cast<float>(bounds.x),
+                                       static_cast<float>(bounds.y + bounds.height));
+            } else {
+                cv.set_linear_gradient(canvas_ity::fill_style,
+                                       static_cast<float>(bounds.x),
+                                       static_cast<float>(bounds.y + bounds.height),
+                                       static_cast<float>(bounds.x),
+                                       static_cast<float>(bounds.y));
+            }
         } else {
-            cv.set_linear_gradient(canvas_ity::fill_style,
-                                   static_cast<float>(bounds.x),
-                                   static_cast<float>(bounds.y),
-                                   static_cast<float>(bounds.x + bounds.width),
-                                   static_cast<float>(bounds.y));
+            if (style.reversed) {
+                cv.set_linear_gradient(canvas_ity::fill_style,
+                                       static_cast<float>(bounds.x + bounds.width),
+                                       static_cast<float>(bounds.y),
+                                       static_cast<float>(bounds.x),
+                                       static_cast<float>(bounds.y));
+            } else {
+                cv.set_linear_gradient(canvas_ity::fill_style,
+                                       static_cast<float>(bounds.x),
+                                       static_cast<float>(bounds.y),
+                                       static_cast<float>(bounds.x + bounds.width),
+                                       static_cast<float>(bounds.y));
+            }
         }
 
         for (size_t i = 0; i < spec.colormap.size; ++i) {
@@ -676,7 +694,8 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         if (isVertical) {
             float blockH = static_cast<float>(cb.height) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                const Color& c = spec.colormap.data[i];
+                size_t idx = style.reversed ? (spec.colormap.size - 1 - i) : i;
+                const Color& c = spec.colormap.data[idx];
                 float y0 = static_cast<float>(cb.y) + static_cast<float>(i) * blockH;
                 svg << "  <rect x=\"" << cb.x << "\" y=\"" << y0
                     << "\" width=\"" << cb.width << "\" height=\"" << blockH
@@ -687,7 +706,8 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         } else {
             float blockW = static_cast<float>(cb.width) / static_cast<float>(spec.colormap.size);
             for (size_t i = 0; i < spec.colormap.size; ++i) {
-                const Color& c = spec.colormap.data[i];
+                size_t idx = style.reversed ? (spec.colormap.size - 1 - i) : i;
+                const Color& c = spec.colormap.data[idx];
                 float x0 = static_cast<float>(cb.x) + static_cast<float>(i) * blockW;
                 svg << "  <rect x=\"" << x0 << "\" y=\"" << cb.y
                     << "\" width=\"" << blockW << "\" height=\"" << cb.height
@@ -700,9 +720,17 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         // Continuous: linear gradient
         svg << "  <defs>\n";
         if (isVertical) {
-            svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">\n";
+            if (style.reversed) {
+                svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n";
+            } else {
+                svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">\n";
+            }
         } else {
-            svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n";
+            if (style.reversed) {
+                svg << "    <linearGradient id=\"scibarGrad\" x1=\"1\" y1=\"0\" x2=\"0\" y2=\"0\">\n";
+            } else {
+                svg << "    <linearGradient id=\"scibarGrad\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\">\n";
+            }
         }
         for (size_t i = 0; i < spec.colormap.size; ++i) {
             const Color& c = spec.colormap.data[i];
