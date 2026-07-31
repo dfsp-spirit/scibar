@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.14)
-project(diverging_horizontal_example CXX)
+project(diverging_horizontal_vik CXX)
 
 # Bring in scibar INTERFACE target if building standalone
 if(NOT TARGET scibar)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. "${CMAKE_CURRENT_BINARY_DIR}/scibar")
 endif()
 
-add_executable(diverging_horizontal_example main.cpp)
-target_link_libraries(diverging_horizontal_example PRIVATE scibar)
+add_executable(diverging_horizontal_vik main.cpp)
+target_link_libraries(diverging_horizontal_vik PRIVATE scibar)

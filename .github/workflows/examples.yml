@@ -1,0 +1,90 @@
+name: Build & Run Examples
+
+# Builds and runs every example to catch bit-rot from API changes.
+# Executable names == directory names, so each step is self-documenting.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (top-level, examples only)
+        run: cmake -B build -S . -DSCIBAR_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build all examples
+        run: cmake --build build --config Release -j$(nproc)
+
+      - name: Run categorical_horizontal
+        run: cd build/examples/categorical_horizontal && ./categorical_horizontal && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run categorical_horizontal_axisinversed
+        run: cd build/examples/categorical_horizontal_axisinversed && ./categorical_horizontal_axisinversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run categorical_horizontal_axisinversed_reversed
+        run: cd build/examples/categorical_horizontal_axisinversed_reversed && ./categorical_horizontal_axisinversed_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run categorical_horizontal_reversed
+        run: cd build/examples/categorical_horizontal_reversed && ./categorical_horizontal_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run categorical_vertical
+        run: cd build/examples/categorical_vertical && ./categorical_vertical && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run categorical_vertical_reversed
+        run: cd build/examples/categorical_vertical_reversed && ./categorical_vertical_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run custom_font
+        run: cd build/examples/custom_font && ./custom_font && test -f colorbar_custom_font.png && test -f colorbar_custom_font.svg
+
+      - name: Run diverging_horizontal_vik
+        run: cd build/examples/diverging_horizontal_vik && ./diverging_horizontal_vik && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run diverging_horizontal_vik_axisinversed
+        run: cd build/examples/diverging_horizontal_vik_axisinversed && ./diverging_horizontal_vik_axisinversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run diverging_horizontal_vik_reversed
+        run: cd build/examples/diverging_horizontal_vik_reversed && ./diverging_horizontal_vik_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run diverging_vertical_vik
+        run: cd build/examples/diverging_vertical_vik && ./diverging_vertical_vik && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run diverging_vertical_vik_reversed
+        run: cd build/examples/diverging_vertical_vik_reversed && ./diverging_vertical_vik_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run full_CLI_demo_app (default config)
+        run: cd build/examples/full_CLI_demo_app && ./full_CLI_demo_app && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run full_CLI_demo_app (CLI overrides)
+        run: cd build/examples/full_CLI_demo_app && ./full_CLI_demo_app --type diverging --cmap vik --theme dark --min -5 --max 5 --format png --output ci_test && test -f ci_test.png
+
+      - name: Run linear_horizontal_viridis
+        run: cd build/examples/linear_horizontal_viridis && ./linear_horizontal_viridis && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run linear_horizontal_viridis_reversed
+        run: cd build/examples/linear_horizontal_viridis_reversed && ./linear_horizontal_viridis_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run linear_vertical_viridis
+        run: cd build/examples/linear_vertical_viridis && ./linear_vertical_viridis && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run linear_vertical_viridis_reversed
+        run: cd build/examples/linear_vertical_viridis_reversed && ./linear_vertical_viridis_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run logarithmic_horizontal_viridis
+        run: cd build/examples/logarithmic_horizontal_viridis && ./logarithmic_horizontal_viridis && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run logarithmic_horizontal_viridis_reversed
+        run: cd build/examples/logarithmic_horizontal_viridis_reversed && ./logarithmic_horizontal_viridis_reversed && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run logarithmic_vertical_viridis
+        run: cd build/examples/logarithmic_vertical_viridis && ./logarithmic_vertical_viridis && test -f colorbar.png && test -f colorbar.svg
+
+      - name: Run logarithmic_vertical_viridis_reversed
+        run: cd build/examples/logarithmic_vertical_viridis_reversed && ./logarithmic_vertical_viridis_reversed && test -f colorbar.png && test -f colorbar.svg
