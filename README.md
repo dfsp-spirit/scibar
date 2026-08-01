@@ -52,31 +52,24 @@ scibar is a single-file, header only, C++17 library for plotting color bars to b
 int main() {
     using namespace scibar;
 
-    // Canvas: wide and short for a horizontal bar
-    const int W = 600, H = 120;
+    // Create a canvas to draw on
+    const int W = 200, H = 500;
     std::vector<uint32_t> buf(W * H);
     Canvas canvas{buf.data(), W, H};
-    fillCanvas(canvas, Color{255, 255, 255, 255});
+    fillCanvas(canvas, Color{255, 255, 255, 255}); // your background color of choice
 
-    // Data + colormap
-    auto cmap = util::viridis();   // store locally — ColorMapView is non-owning
+    // Create the spec: colormap, scale type, and the data range
+    auto cmap = util::viridis();   // store locally — ColorMapView is non-owning.
     Spec spec;
-    spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+    spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f}; // Linear, data from 0 to 100
     spec.title    = "Temperature (°C)";
     spec.colormap = cmap;
 
-    // Render
-    Style style = Style::defaultLight();
-    Rect barRect{50, 45, 500, 30};
-    drawColorBar(canvas, barRect, spec, style, Orientation::Horizontal);
-    drawTicks(canvas, barRect, spec, style, Orientation::Horizontal);
-    drawSubTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+    // Render with the high-level API — handles title, colorbar, ticks, sub-ticks automatically
+    Style style = Style::defaultLight();  // You could adapt style to your needs
+    drawLegend(canvas, spec, style);
 
-    // Title centered above the bar
-    Rect titleRect{barRect.x, 5, barRect.width, 35};
-    drawTitle(canvas, titleRect, spec.title, style);
-
-    // Save as PPM (no external dependencies)
+    // Save as PPM (no external dependencies), or PGN.
     writePPM(canvas, "colorbar.ppm");
 
     return 0;
