@@ -58,10 +58,11 @@ int main() {
     Canvas canvas{buf.data(), W, H};
 
     // 2. Define the data domain and colormap
+    auto cmap = util::viridis();   // built-in 256-entry colormap
     Spec spec;
     spec.scale = Scale{ScaleType::Linear, 0.0f, 100.0f};
     spec.title = "Temperature (°C)";
-    spec.colormap = util::viridis();   // built-in 256-entry colormap
+    spec.colormap = cmap;
 
     // 3. Render with sensible defaults
     drawLegend(canvas, spec, Style::defaultLight());
@@ -83,10 +84,11 @@ int main() {
 int main() {
     using namespace scibar;
 
+    auto cmap = util::vik();   // diverging colormap
     Spec spec;
     spec.scale = Scale{ScaleType::Linear, -3.5f, 3.5f};
     spec.title = "Z-Score";
-    spec.colormap = util::vik();   // diverging colormap
+    spec.colormap = cmap;
 
     // Hybrid figure: embed a raster image alongside the vector colorbar
     SVGOptions opts;
@@ -196,6 +198,12 @@ cmake -B build -DSCIBAR_BUILD_EXAMPLES=ON
 cmake --build build
 ./build/examples/linear_vertical_viridis/linear_vertical_viridis
 ./build/examples/full_CLI_demo_app/full_CLI_demo_app
+```
+
+Alternatively, use the convenience script to build and run all examples at once:
+
+```bash
+./examples/run_all_examples.sh
 ```
 
 ## Building and Running Tests
