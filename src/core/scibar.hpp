@@ -1,22 +1,62 @@
 /// @file scibar.hpp
 /// @brief Single-header scientific colorbar rendering for C++17.
 ///
-/// scibar renders publication-quality colorbar legends to both raster (RGBA pixel
-/// buffer) and vector (SVG) output, supporting linear, logarithmic, diverging, and
-/// categorical data scales.
+/// scibar renders publication-quality colorbar legends to both raster
+/// (RGBA pixel buffer) and vector (SVG) output. It supports linear,
+/// logarithmic, diverging, and categorical data scales, with built-in
+/// perceptually-uniform colormaps.
 ///
-/// Usage:
+/// @par Quick start (3 steps)
 /// @code
-///   // In exactly one .cpp file:
+///   // 1. In exactly one .cpp file:
 ///   #define SCIBAR_IMPLEMENTATION
 ///   #include "scibar.hpp"
-///   // Everywhere else:
+///
+///   // 2. In all other files:
 ///   #include "scibar.hpp"
+///
+///   // 3. Compile with C++17:
+///   // g++ -std=c++17 main.cpp -o my_app
 /// @endcode
 ///
-/// Dependencies (vendored in src/third_party/):
-///   - canvas_ity.hpp  (ISC license) — 2D rasterization
-///   - stb_truetype.h  (Public Domain) — font metrics & glyph rasterization
+/// @par Minimal example
+/// @code
+///   #define SCIBAR_IMPLEMENTATION
+///   #include "scibar.hpp"
+///   #include <vector>
+///
+///   int main() {
+///       using namespace scibar;
+///       const int W = 200, H = 500;
+///       std::vector<uint32_t> buf(W * H);
+///       Canvas canvas{buf.data(), W, H};
+///       fillCanvas(canvas, Color{255,255,255,255});
+///
+///       auto cmap = util::viridis();
+///       Spec spec;
+///       spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+///       spec.title    = "Temperature (°C)";
+///       spec.colormap = cmap;
+///
+///       drawLegend(canvas, spec);
+///       writePPM(canvas, "colorbar.ppm");
+///       return 0;
+///   }
+/// @endcode
+///
+/// @par Features
+/// - **No external dependencies** — everything is vendored
+/// - **Two backends**: raster (RGBA pixel buffer) and vector (SVG)
+/// - **Two API levels**: high-level `drawLegend()` for quick results,
+///   low-level `drawColorBar()`/`drawTicks()`/`drawTitle()` for full control
+/// - **Perceptually-uniform colormaps**: viridis, vik (256 entries each)
+/// - **Embedded font**: Inter (SIL Open Font License), zero-config
+///
+/// Dependencies (vendored in `src/third_party/`):
+///   - `canvas_ity.hpp` (ISC license) — 2D rasterization
+///   - `stb_truetype.h` (Public Domain) — font metrics & glyph rasterization
+///
+/// @see [API Reference](annotated.html), [Getting Started](md_docs_GETTING_STARTED.html)
 
 #ifndef SCIBAR_HPP
 #define SCIBAR_HPP
@@ -28,6 +68,16 @@
 #include <optional>
 
 /// @brief All scibar types and functions live in this namespace.
+///
+/// To use scibar, either:
+/// @code
+/// using namespace scibar;
+/// @endcode
+/// or prefix types with `scibar::`:
+/// @code
+/// scibar::Canvas canvas{buf.data(), W, H};
+/// scibar::drawLegend(canvas, spec, style);
+/// @endcode
 namespace scibar {
 
 // =========================================================================
@@ -37,40 +87,87 @@ namespace scibar {
 /// @brief The type of data scale, which determines how tick values are mapped
 /// to positions along the colorbar.
 ///
-/// - `Linear`: Uniform spacing; tick positions are proportional to data values.
-/// - `Logarithmic`: Spacing is logarithmic; `Scale::min` must be > 0.
-/// - `Categorical`: Discrete, equally spaced segments — one per colormap entry.
-/// - `Diverging`: A symmetric scale centered at `Scale::midpoint`; the colormap
-///   is split in the middle so that positive and negative deviations share the
-///   same color ramp.
+/// Choose the scale type that matches your data:
+///
+/// | Type | Use when… | Example |
+/// |---|---|---|
+/// | `Linear` | Data is evenly spaced | Temperature (0–100 °C), distance |
+/// | `Logarithmic` | Data spans many orders of magnitude | Earthquake magnitudes, pH (1–14) |
+/// | `Categorical` | Discrete, named groups | Brain regions, treatment groups |
+/// | `Diverging` | Data has a meaningful center point | Z-scores (-3 to +3), correlations |
+///
+/// @note For `Logarithmic`, `Scale::min` must be > 0 (log of zero is undefined).
+/// @note For `Categorical`, set `Spec::colormap` to have exactly one color per
+/// category. The bar is divided into equal-width segments — one per colormap entry.
+/// Labels come from `Spec::ticks`, one label per segment.
+/// @note For `Diverging`, set `Scale::midpoint` to the symmetry center. The
+/// colormap will be split at the middle: the first half maps to values below
+/// the midpoint, the second half maps to values above it. Use a diverging
+/// colormap like `scibar::util::vik()`.
+///
+/// @see Scale, Spec, scibar::util::vik()
 enum class ScaleType { Linear, Logarithmic, Categorical, Diverging };
 
 /// @brief The orientation (layout direction) of a colorbar.
 ///
-/// - `Vertical`: color gradient runs top-to-bottom (default).
-/// - `Horizontal`: color gradient runs left-to-right.
+/// - `Vertical`: color gradient runs from top to bottom. Tick labels appear
+///   to the right of the bar. This is the default and the most common choice
+///   for figure side-bars.
+/// - `Horizontal`: color gradient runs from left to right. Tick labels appear
+///   below the bar. Useful for figure footers or wide layouts.
+///
+/// @note The orientation affects where tick labels are placed. If you need
+/// labels on both sides, use the low-level API to draw ticks twice with
+/// different offsets.
+///
+/// @see drawColorBar(), drawTicks(), drawLegend()
 enum class Orientation { Vertical, Horizontal };
 
 // =========================================================================
 // Data Structures
 // =========================================================================
 
-/// @brief Float RGBA color — used for interop with float-based color libraries
-/// (e.g., scimesh).
+/// @brief Float RGBA color — used for interop with float-based color
+/// libraries (e.g., scimesh).
 ///
-/// All channels are in [0.0, 1.0].
+/// All channels are in [0.0, 1.0]. Convert from integer `Color` using
+/// `Color::asFloat()`, or construct directly:
+/// @code
+/// ColorF red{1.0f, 0.0f, 0.0f, 1.0f};  // opaque red
+/// @endcode
+///
+/// @see Color, Color::asFloat(), Color::fromFloat()
 struct ColorF {
     float r = 0.0f; ///< Red channel   [0.0, 1.0]
     float g = 0.0f; ///< Green channel [0.0, 1.0]
     float b = 0.0f; ///< Blue channel  [0.0, 1.0]
-    float a = 1.0f; ///< Alpha channel [0.0, 1.0]
+    float a = 1.0f; ///< Alpha channel [0.0, 1.0] (1.0 = fully opaque)
 };
 
-/// @brief Explicit RGBA color with 8-bit channels — eliminates endianness bugs
-/// across platforms.
+/// @brief Explicit RGBA color with 8-bit channels — eliminates endianness
+/// bugs across platforms.
 ///
-/// Byte layout (in packed uint32_t): byte 0 (LSB) = R, byte 1 = G, byte 2 = B,
-/// byte 3 (MSB) = A.
+/// Byte layout (in packed uint32_t): byte 0 (LSB) = R, byte 1 = G,
+/// byte 2 = B, byte 3 (MSB) = A.
+///
+/// @par Creating colors
+/// @code
+/// // Named channels (most readable)
+/// Color red{255, 0, 0, 255};
+/// Color transparent{0, 0, 0, 0};
+/// Color white{255, 255, 255, 255};
+///
+/// // From hex (0xRRGGBBAA)
+/// Color red = Color::fromHex(0xFF0000FF);
+///
+/// // From float [0,1] channels
+/// Color red = Color::fromFloat(1.0f, 0.0f, 0.0f);
+/// @endcode
+///
+/// @note Each channel is 0–255. 255 is fully opaque for alpha, fully
+/// saturated for RGB.
+///
+/// @see ColorF, Canvas, ColorMapView
 struct Color {
     uint8_t r = 0;   ///< Red channel   [0, 255]
     uint8_t g = 0;   ///< Green channel [0, 255]
@@ -78,18 +175,38 @@ struct Color {
     uint8_t a = 255; ///< Alpha channel [0, 255]
 
     /// @brief Create a Color from a packed 32-bit hex value (0xRRGGBBAA).
-    /// @param hex Packed RGBA, e.g., `0xFF0000FF` for opaque red.
+    ///
+    /// @par Example
+    /// @code
+    /// Color red   = Color::fromHex(0xFF0000FF);  // opaque red
+    /// Color blue  = Color::fromHex(0x0000FFFF);  // opaque blue
+    /// Color semi  = Color::fromHex(0xFF000080);  // 50% transparent red
+    /// @endcode
+    ///
+    /// @param hex Packed RGBA as `0xRRGGBBAA` (byte order: R=MSB, A=LSB).
     /// @return The corresponding Color.
+    ///
+    /// @note This is the standard HTML/CSS hex color format with an extra
+    /// alpha byte at the end. `0xFF0000FF` = red, not blue.
     static constexpr Color fromHex(uint32_t hex) {
         return { uint8_t(hex >> 24), uint8_t(hex >> 16),
                  uint8_t(hex >> 8),  uint8_t(hex & 0xFF) };
     }
 
     /// @brief Construct from float channels in [0, 1] range.
+    ///
+    /// @par Example
+    /// @code
+    /// Color red   = Color::fromFloat(1.0f, 0.0f, 0.0f);       // opaque red
+    /// Color semi  = Color::fromFloat(1.0f, 0.0f, 0.0f, 0.5f); // 50% transparent
+    /// Color gray  = Color::fromFloat(0.5f, 0.5f, 0.5f);       // mid-gray
+    /// @endcode
+    ///
     /// @param r Red   [0.0, 1.0]
     /// @param g Green [0.0, 1.0]
     /// @param b Blue  [0.0, 1.0]
-    /// @param a Alpha [0.0, 1.0] (default 1.0 = fully opaque)
+    /// @param a Alpha [0.0, 1.0] (default 1.0 = fully opaque, 0.0 = fully
+    ///          transparent)
     /// @return The corresponding Color.
     static constexpr Color fromFloat(float r, float g, float b, float a = 1.0f) {
         return { uint8_t(r * 255.0f + 0.5f), uint8_t(g * 255.0f + 0.5f),
@@ -99,9 +216,15 @@ struct Color {
     /// @brief Create a Color from a packed uint32_t in Canvas RGBA byte order
     /// (byte 0 = R, byte 1 = G, byte 2 = B, byte 3 = A).
     ///
-    /// This is the correct way to read a pixel from a Canvas buffer. Unlike
-    /// fromHex() which expects `0xRRGGBBAA` (big-endian bytes), canvas pixels
-    /// are stored in little-endian `0xAABBGGRR` order.
+    /// This is the correct way to **read a pixel** from a Canvas buffer.
+    /// Unlike fromHex() which expects `0xRRGGBBAA` (big-endian bytes),
+    /// canvas pixels are stored in little-endian `0xAABBGGRR` order.
+    ///
+    /// @par Example: read the top-left pixel
+    /// @code
+    /// Color pixel = Color::fromPackedRGBA(canvas.pixels[0]);
+    /// @endcode
+    ///
     /// @param packed A uint32_t from `Canvas::pixels[]`.
     /// @return The corresponding Color with correct channel mapping.
     static constexpr Color fromPackedRGBA(uint32_t packed) {
@@ -112,7 +235,14 @@ struct Color {
     }
 
     /// @brief Convert to float representation (ColorF) for interop with
-    /// float-based libraries.
+    /// float-based libraries (e.g., scimesh).
+    ///
+    /// @par Example
+    /// @code
+    /// ColorF f = Color{128, 64, 32, 255}.asFloat();
+    /// // f = {0.502f, 0.251f, 0.125f, 1.0f}
+    /// @endcode
+    ///
     /// @return A ColorF with all channels in [0.0, 1.0].
     constexpr ColorF asFloat() const {
         return { r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f };
@@ -122,56 +252,159 @@ struct Color {
 /// @brief Specifies the data domain — the numeric range that the colorbar
 /// represents.
 ///
-/// For diverging scales, `midpoint` defines the symmetry center. For
-/// logarithmic scales, both `min` and `midpoint` must be > 0.
+/// This tells scibar what values to map to the ends of the colorbar and how
+/// to position tick marks between them.
+///
+/// @par Examples for different scale types
+/// @code
+/// // Linear: temperature
+/// Scale{ScaleType::Linear, 0.0f, 100.0f}
+///
+/// // Logarithmic: frequencies (1 Hz to 1000 Hz)
+/// Scale{ScaleType::Logarithmic, 1.0f, 1000.0f}
+///
+/// // Diverging: z-scores centered at 0
+/// Scale{ScaleType::Diverging, -3.0f, 3.0f, 0.0f}
+///
+/// // Categorical: 4 categories (bar divided into 4 equal segments)
+/// Scale{ScaleType::Categorical, 0.0f, 4.0f}
+/// @endcode
+///
+/// @note For diverging scales, `midpoint` defines where the colormap is
+/// split. Typically `midpoint = 0.0` for symmetric data. Values below
+/// `midpoint` use the first half of the colormap; values above use the
+/// second half.
+/// @note For logarithmic scales, both `min` and `midpoint` must be > 0.
+/// @note `inverted = true` swaps the spatial direction: max appears at the
+/// top/left of the bar instead of at the bottom/right.
+///
+/// @see ScaleType, Spec
 struct Scale {
     ScaleType type = ScaleType::Linear; ///< Scale type (Linear, Log, Categorical, Diverging)
-    float min = 0.0f;   ///< Minimum data value
+    float min = 0.0f;   ///< Minimum data value (must be > 0 for Log scales)
     float max = 1.0f;   ///< Maximum data value
-    float midpoint = 0.0f; ///< Center value for diverging scales or log shifts
+    float midpoint = 0.0f; ///< Symmetry center for diverging scales; log reference for log scales
     bool inverted = false; ///< If true, max→min runs visually from start→end of the bar
 };
 
 /// @brief Font description for text rendering.
 ///
-/// When `handle == nullptr`, the embedded Inter-Regular font is used
-/// automatically (zero-config).
+/// When `handle == nullptr` (the default), the embedded **Inter** font
+/// (SIL Open Font License) is used automatically — zero configuration.
+///
+/// @par Using the default embedded font
+/// @code
+/// scibar::Font font;  // handle == nullptr, size = 14px — ready to use
+/// @endcode
+///
+/// @par Loading a custom font
+/// @code
+/// scibar::Font font = scibar::loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16.0f);
+/// @endcode
+///
+/// @note The font handle stores internal rasterization data loaded by
+/// `loadFont()`. Embedded font data is always available — you never need
+/// to call `loadFont()` unless you want a custom font file.
+///
+/// @see loadFont(), Style
 struct Font {
-    const void* handle = nullptr; ///< nullptr = use embedded Inter font (Tier 2)
-    float size = 14.0f;           ///< Font size in pixels
+    const void* handle = nullptr; ///< nullptr = use embedded Inter font (zero-config)
+    float size = 14.0f;           ///< Font size in pixels (height of the em-square)
 };
 
 /// @brief Vertical metrics of a font, used for manual text layout.
 ///
-/// All values are in pixels at the current `Font::size`. `descender` is
-/// negative (below baseline). `lineHeight` is the recommended spacing
-/// between consecutive lines.
-struct FontMetrics {
-    float ascender   = 0.0f; ///< Distance from baseline to top of tallest glyph
-    float descender  = 0.0f; ///< Distance from baseline to bottom (negative)
-    float lineHeight = 0.0f; ///< Recommended line spacing (ascender - descender + leading)
-};
-
-/// @brief A major tick — a labeled tick mark.
-struct Tick {
-    float value = 0.0f;     ///< Data value at this tick position
-    std::string label;      ///< Human-readable tick label (owned, no lifetime issues)
-};
-
-/// @brief A sub-tick (minor tick) — an unlabeled tick mark drawn between major
-/// ticks.
+/// All values are in pixels at the current `Font::size`. Use these when you
+/// need precise control over text placement in low-level layouts.
 ///
-/// Sub-ticks are typically shorter than major ticks and are drawn without a
-/// text label.
+/// @par Typical values for Inter at 14px
+/// - `ascender`:   ~13 px (above baseline)
+/// - `descender`:   ~-4 px (below baseline, negative)
+/// - `lineHeight`:  ~18 px (recommended line-to-line spacing)
+///
+/// @par Usage
+/// @code
+/// auto metrics = scibar::fontMetrics(font);
+/// float textTop = baselineY - metrics.ascender;  // pixel at top of tallest glyph
+/// float textBottom = baselineY - metrics.descender;  // pixel at bottom
+/// @endcode
+///
+/// @note `descender` is negative (e.g., -4.0). To compute the bottom edge of
+/// text, use `baseline - descender`, not `baseline + descender`.
+///
+/// @see fontMetrics(), Font
+struct FontMetrics {
+    float ascender   = 0.0f; ///< Distance from baseline to top of tallest glyph (positive)
+    float descender  = 0.0f; ///< Distance from baseline to bottom (negative, e.g., -4.0)
+    float lineHeight = 0.0f; ///< Recommended line spacing: ascender − descender + leading
+};
+
+/// @brief A major tick — a labeled tick mark drawn at a specific data value.
+///
+/// Major ticks display both a tick mark (line) and a text label. They define
+/// the primary reference points along the colorbar.
+///
+/// @par Manual tick specification
+/// @code
+/// spec.ticks = {
+///     {0.0f, "0"},
+///     {25.0f, "25"},
+///     {50.0f, "50"},
+///     {75.0f, "75"},
+///     {100.0f, "100"},
+/// };
+/// @endcode
+///
+/// @note The `value` must be within `Scale::min` and `Scale::max` (inclusive).
+/// Ticks outside this range are still drawn but positioned at the nearest edge.
+/// @note If you don't set `Spec::ticks`, scibar auto-generates nice tick values
+/// using `generateTicks()`.
+///
+/// @see generateTicks(), SubTick, Spec
+struct Tick {
+    float value = 0.0f;     ///< Data value where the tick should appear
+    std::string label;      ///< Text label (e.g., "50", "Control", "−1.5")
+};
+
+/// @brief A sub-tick (minor tick) — an unlabeled tick mark drawn between
+/// major ticks.
+///
+/// Sub-ticks are shorter than major ticks and have no text label. They
+/// provide finer visual graduation between major tick positions.
+///
+/// @note Sub-ticks only make sense for Linear and Diverging scales.
+/// Log scales and Categorical scales typically don't use them.
+/// @note If you don't set `Spec::subTicks`, scibar auto-generates them
+/// using `generateSubTicks()` with `Style::subTicksPerInterval` divisions
+/// between each pair of major ticks.
+///
+/// @see generateSubTicks(), Tick, Style::subTicksPerInterval
 struct SubTick {
-    float value = 0.0f;     ///< Data value at this sub-tick position
+    float value = 0.0f;     ///< Data value where the sub-tick should appear
 };
 
 /// @brief Non-owning view into a colormap (array of Color).
 ///
-/// Implicitly constructible from `const std::vector<Color>&` for ergonomic
-/// usage. Construction from an rvalue vector is explicitly deleted to prevent
-/// dangling pointers from temporaries.
+/// ColorMapView does **not** own the color data — it only stores a pointer.
+/// You must keep the underlying `std::vector<Color>` alive as long as the
+/// `ColorMapView` (and any `Spec` using it) exists.
+///
+/// @par Correct usage
+/// @code
+/// auto cmap = scibar::util::viridis();  // colormap lives here
+/// spec.colormap = cmap;                 // safe: cmap outlives spec
+/// @endcode
+///
+/// @par ❌ Wrong — dangling pointer!
+/// @code
+/// spec.colormap = scibar::util::viridis();  // temporary destroyed here!
+/// // spec.colormap.data now points to freed memory
+/// @endcode
+///
+/// Construction from an rvalue vector (`std::vector<Color>&&`) is explicitly
+/// deleted to prevent this mistake at compile time.
+///
+/// @see Spec, scibar::util::viridis(), scibar::util::vik()
 struct ColorMapView {
     const Color* data = nullptr; ///< Pointer to the first color entry
     size_t size = 0;             ///< Number of entries in the colormap
@@ -187,11 +420,42 @@ struct ColorMapView {
 
 /// @brief The complete data + colormap specification for a colorbar.
 ///
-/// If `ticks` is empty, major ticks are auto-generated via generateTicks().
-/// If `subTicks` is empty, sub-ticks are auto-generated via generateSubTicks().
+/// This is the central data structure you fill in before drawing. At minimum,
+/// you need `scale`, `colormap`, and optionally `title`. Ticks are
+/// auto-generated if you leave them empty.
+///
+/// @par Minimal example
+/// @code
+/// // Store the colormap in a variable — ColorMapView is non-owning
+/// auto cmap = scibar::util::viridis();
+///
+/// scibar::Spec spec;
+/// spec.scale    = scibar::Scale{scibar::ScaleType::Linear, 0.0f, 100.0f};
+/// spec.colormap = cmap;
+/// spec.title    = "Temperature (°C)";
+/// // ticks and subTicks are auto-generated
+/// @endcode
+///
+/// @par Custom ticks
+/// To use custom tick labels (e.g., for categorical data):
+/// @code
+/// spec.ticks = {
+///     {0.5f, "Control"},
+///     {1.5f, "Treatment A"},
+///     {2.5f, "Treatment B"},
+/// };
+/// @endcode
+///
+/// @note `colormap` is a @ref ColorMapView (non-owning view). You must keep
+/// the underlying `std::vector<Color>` alive as long as the `Spec` is in use.
+/// Typically, you store the colormap in a local variable above the `Spec`.
+/// @note If `ticks` is empty, major ticks are auto-generated via generateTicks().
+/// @note If `subTicks` is empty, sub-ticks are auto-generated via generateSubTicks().
+///
+/// @see Scale, ColorMapView, generateTicks(), generateSubTicks(), drawLegend()
 struct Spec {
-    Scale scale;                ///< Data domain
-    ColorMapView colormap;      ///< Non-owning colormap lookup table
+    Scale scale;                ///< Data domain (min, max, scale type)
+    ColorMapView colormap;      ///< Non-owning colormap lookup table — store in a local variable!
     std::string title;          ///< Optional title displayed above/beside the bar
     std::vector<Tick>    ticks;    ///< Custom major ticks; auto-generated if empty
     std::vector<SubTick> subTicks; ///< Custom sub-ticks; auto-generated if empty
@@ -199,12 +463,27 @@ struct Spec {
 
 /// @brief Visual style for the colorbar — colors, sizes, and layout flags.
 ///
-/// Use the static factory methods defaultLight() and defaultDark() for a quick
-/// start, then customize individual fields.
+/// @par Quick start
+/// Use the factory methods for a sensible default, then tweak individual
+/// fields as needed:
+/// @code
+/// auto style = scibar::Style::defaultLight();   // black text, transparent bg
+/// style.tickLength = 8.0f;                       // longer tick marks
+/// style.font.size  = 18.0f;                      // larger text
+/// style.showFrame  = false;                      // no border
+/// @endcode
 ///
-/// **Colormap direction** is controlled by two independent flags:
-/// - `reverseColors` (Style): flips colormap lookup order (visual only).
-/// - `inverted` (Scale):   flips the data direction spatially.
+/// For dark backgrounds:
+/// @code
+/// auto style = scibar::Style::defaultDark();     // white text, transparent bg
+/// @endcode
+///
+/// @par Colormap direction
+/// There are two independent ways to flip the colorbar direction:
+/// - `reverseColors` (Style): flips the colormap lookup order — red becomes
+///   blue, etc. This changes the visual colors, not the data mapping.
+/// - `inverted` (Scale): flips the data direction — min and max swap ends of
+///   the bar. This changes where values appear, not the colors themselves.
 ///
 /// | What you want | How to get it |
 /// |---|---|
@@ -212,20 +491,22 @@ struct Spec {
 /// | Colors flipped, data unchanged | `style.reverseColors = true` |
 /// | Axis inverted, same colors | `scale.inverted = true` |
 /// | Both flipped | both flags set |
+///
+/// @see defaultLight(), defaultDark()
 struct Style {
-    bool  showFrame     = true;  ///< Draw a frame/outline around the colorbar
-    Color frameColor    = Color::fromHex(0x000000FF); ///< Frame color
-    Color tickColor     = Color::fromHex(0x000000FF); ///< Tick mark color
-    Color textColor     = Color::fromHex(0x000000FF); ///< Text label color
-    Font  font;                    ///< Font for tick labels and title
+    bool  showFrame     = true;  ///< Draw a thin border around the colorbar
+    Color frameColor    = Color::fromHex(0x000000FF); ///< Frame border color (default: black)
+    Color tickColor     = Color::fromHex(0x000000FF); ///< Tick mark and label color (default: black)
+    Color textColor     = Color::fromHex(0x000000FF); ///< Title and label text color (default: black)
+    Font  font;                    ///< Font for all text (nullptr = embedded Inter, 14px)
 
     float tickLength         = 5.0f;  ///< Major tick mark length in pixels
-    float subTickLength      = 3.0f;  ///< Sub-tick mark length in pixels
-    int   tickPrecision      = 6;     ///< Significant digits for tick labels (printf %.*g)
-    int   subTicksPerInterval = 4;    ///< Sub-ticks between major ticks (linear/diverging only)
-    bool  showSubTicks       = true;  ///< If false, sub-ticks are not drawn
-    bool  reverseColors      = false; ///< Flip colormap lookup (visual only)
-    bool  ticksInward        = false; ///< If true, ticks point inside the bar
+    float subTickLength      = 3.0f;  ///< Sub-tick mark length in pixels (shorter than major)
+    int   tickPrecision      = 6;     ///< Significant digits for auto-generated tick labels (printf %.*g)
+    int   subTicksPerInterval = 4;    ///< Sub-ticks between each pair of major ticks (linear/diverging only)
+    bool  showSubTicks       = true;  ///< Set to false to hide sub-ticks entirely
+    bool  reverseColors      = false; ///< Flip colormap lookup direction (red ↔ blue, visual only)
+    bool  ticksInward        = false; ///< If true, tick marks point inside the bar instead of outward
 
     /// @brief Default light theme (black on transparent).
     static Style defaultLight();
@@ -233,29 +514,77 @@ struct Style {
     static Style defaultDark();
 };
 
-/// @brief A packed RGBA pixel buffer.
+/// @brief A packed RGBA pixel buffer — the target for all raster drawing.
 ///
-/// `pixels[]` uses packed uint32_t in RGBA byte order:
+/// The buffer is caller-owned (you allocate it, scibar draws into it).
+/// `pixels[]` uses packed `uint32_t` where each pixel is laid out as:
 /// byte 0 (LSB) = R, byte 1 = G, byte 2 = B, byte 3 (MSB) = A.
-/// This matches the layout of Color::fromHex() and common RGBA8888 framebuffers.
+///
+/// @par Construction
+/// The simplest way to create a Canvas is with a `std::vector<uint32_t>`:
+/// @code
+/// const int W = 300, H = 600;
+/// std::vector<uint32_t> buf(W * H);
+/// Canvas canvas{buf.data(), W, H};
+/// @endcode
+///
+/// @note The buffer is **not** managed by `Canvas` — you must keep the
+/// underlying memory alive for the lifetime of the drawing operations.
+/// `Canvas` does not allocate or free memory.
+/// @note Use `fillCanvas()` to clear the canvas before drawing (e.g., fill
+/// with white for a light theme).
+///
+/// @see fillCanvas(), writePPM(), Color::fromPackedRGBA()
 struct Canvas {
-    uint32_t* pixels = nullptr; ///< Packed RGBA pixel array (caller-owned)
+    uint32_t* pixels = nullptr; ///< Packed RGBA pixel array (caller-owned — you allocate it)
     int width  = 0;             ///< Canvas width in pixels
     int height = 0;             ///< Canvas height in pixels
 };
 
 /// @brief An axis-aligned integer rectangle.
+///
+/// Used to specify where on the canvas elements should be drawn.
+/// Coordinates are in pixels, with (0,0) at the **top-left** corner of the
+/// canvas. x increases to the right, y increases downward.
+///
+/// @par Example
+/// @code
+/// // A 500×30 pixel horizontal bar starting at (50, 45):
+/// scibar::Rect barRect{50, 45, 500, 30};
+/// // A title area above the bar:
+/// scibar::Rect titleRect{barRect.x, 5, barRect.width, 35};
+/// @endcode
+///
+/// @note All coordinates are in integer pixels. If you need sub-pixel
+/// precision, round to the nearest pixel.
+///
+/// @see drawColorBar(), drawTicks(), drawTitle(), unionRect()
 struct Rect {
-    int x = 0;      ///< Left edge   (pixels from left)
-    int y = 0;      ///< Top edge    (pixels from top)
-    int width = 0;  ///< Width in pixels
-    int height = 0; ///< Height in pixels
+    int x = 0;      ///< Left edge (pixels from left)
+    int y = 0;      ///< Top edge (pixels from top)
+    int width = 0;  ///< Width in pixels (must be ≥ 0)
+    int height = 0; ///< Height in pixels (must be ≥ 0)
 };
 
 /// @brief Compute the bounding box that contains both rectangles.
+///
+/// Useful for combining the bounds of multiple drawn elements into a
+/// single enclosing rectangle.
+///
+/// @par Example
+/// @code
+/// Rect bar   = drawColorBar(canvas, barRect, spec, style);
+/// Rect ticks = drawTicks(canvas, bar, spec, style);
+/// Rect total = unionRect(bar, ticks);  // combined bounds
+/// @endcode
+///
 /// @param a First rectangle.
-/// @param b Second rectangle.
+/// @param b Second rectangle. If either is empty (width ≤ 0 or height ≤ 0),
+///          the other is returned unchanged.
+///
 /// @return The smallest rectangle that encloses both `a` and `b`.
+///
+/// @see Rect
 inline Rect unionRect(const Rect& a, const Rect& b) {
     if (a.width <= 0 || a.height <= 0) return b;
     if (b.width <= 0 || b.height <= 0) return a;
@@ -268,38 +597,98 @@ inline Rect unionRect(const Rect& a, const Rect& b) {
 
 /// @brief Result returned by drawLegend(), containing the bounding boxes of
 /// the rendered elements.
+///
+/// Useful for understanding where each element ended up after auto-layout,
+/// or for drawing additional custom elements around the legend.
+///
+/// @par Inspecting the layout
+/// @code
+/// auto result = drawLegend(canvas, spec, style);
+/// printf("Colorbar occupies pixels (%d,%d) to (%d,%d)\n",
+///     result.colorbarBoundingBox.x, result.colorbarBoundingBox.y,
+///     result.colorbarBoundingBox.x + result.colorbarBoundingBox.width,
+///     result.colorbarBoundingBox.y + result.colorbarBoundingBox.height);
+/// @endcode
+///
+/// @see drawLegend(), computeLegendLayout()
 struct LayoutResult {
-    Rect totalBoundingBox;    ///< Outer bounds including title, ticks, and labels
-    Rect colorbarBoundingBox; ///< Bounds of just the gradient bar
+    Rect totalBoundingBox;    ///< Outer bounds including title, ticks, labels, and bar
+    Rect colorbarBoundingBox; ///< Bounds of just the gradient bar (excluding ticks and labels)
     int  generatedTickCount = 0; ///< Number of auto-generated major ticks
 };
 
 /// @brief Pre-computed layout for a colorbar legend, shared between raster
 /// and vector backends to guarantee consistent placement.
 ///
-/// Call computeLegendLayout() to obtain a LegendLayout, then pass the
-/// resulting bounds to the low-level drawing functions or to
-/// exportLegendToSVG().
+/// Use this when you need identical layout across raster (PNG/PPM) and
+/// vector (SVG) output — call computeLegendLayout() once, then use the
+/// resulting bounds with both the raster drawing functions and the SVG
+/// export functions.
+///
+/// @par Typical workflow
+/// @code
+/// auto layout = computeLegendLayout(W, H, spec, style, Orientation::Vertical);
+///
+/// // Raster output
+/// drawColorBar(canvas, layout.barBounds, spec, style);
+/// drawTicks(canvas, layout.barBounds, spec, style);
+/// drawTitle(canvas, layout.titleBounds, spec.title, style);
+///
+/// // SVG output (identical placement)
+/// SVGOptions svgOpts;
+/// svgOpts.totalWidth = layout.canvasWidth;
+/// svgOpts.totalHeight = layout.canvasHeight;
+/// svgOpts.colorbarBounds = layout.barBounds;
+/// std::string svg = exportToSVG(spec, style, svgOpts);
+/// @endcode
+///
+/// @see computeLegendLayout(), drawLegend(), exportLegendToSVG()
 struct LegendLayout {
     Orientation orientation = Orientation::Vertical; ///< Layout direction
-    Rect titleBounds;       ///< Where the title should be drawn
-    Rect barBounds;         ///< Where the colorbar gradient should be drawn
-    int  canvasWidth  = 0;  ///< Total canvas width
-    int  canvasHeight = 0;  ///< Total canvas height
+    Rect titleBounds;       ///< Bounding box where the title should be drawn
+    Rect barBounds;         ///< Bounding box where the colorbar gradient should be drawn
+    int  canvasWidth  = 0;  ///< Total canvas width used for this layout
+    int  canvasHeight = 0;  ///< Total canvas height used for this layout
 };
 
 /// @brief Options for SVG export via exportToSVG().
 ///
-/// Allows embedding a raster image (e.g., a 3D mesh render) alongside the
-/// vector colorbar in a single SVG document — ideal for hybrid
-/// publication figures.
+/// Controls the SVG canvas size and element placement. Supports hybrid
+/// figures where a raster image (e.g., a rendered mesh or photograph) is
+/// embedded alongside the vector colorbar in a single SVG document.
+///
+/// @par Standalone colorbar (no embedded image)
+/// @code
+/// scibar::SVGOptions opts;
+/// opts.totalWidth   = 300;
+/// opts.totalHeight  = 600;
+/// opts.colorbarBounds = {50, 50, 120, 500};  // tall narrow bar
+/// // mainImageHref is empty → no image embedded
+/// @endcode
+///
+/// @par Hybrid figure (raster image + vector colorbar)
+/// @code
+/// scibar::SVGOptions opts;
+/// opts.totalWidth   = 800;
+/// opts.totalHeight  = 600;
+/// opts.mainImageHref = "rendered_brain.png";
+/// opts.mainImageBounds = {20, 20, 550, 550};  // main image fills left side
+/// opts.colorbarBounds  = {600, 50, 120, 500};  // colorbar on right side
+/// @endcode
+///
+/// @note `mainImageHref` can be a local file path or a `data:` URI. Use
+/// `data:image/png;base64,...` for self-contained SVG files.
+/// @note `mainImageBounds` uses the same coordinate system as `Rect` —
+/// (0,0) is top-left, x→right, y→down.
+///
+/// @see exportToSVG(), exportLegendToSVG(), Rect
 struct SVGOptions {
-    int totalWidth  = 800;  ///< SVG canvas width
-    int totalHeight = 600;  ///< SVG canvas height
+    int totalWidth  = 800;  ///< SVG canvas width in pixels
+    int totalHeight = 600;  ///< SVG canvas height in pixels
 
-    std::string mainImageHref = ""; ///< Local path or "data:image/png;base64,..." for embedded image
-    Rect mainImageBounds = {20, 20, 550, 550}; ///< Placement of the embedded image
-    Rect colorbarBounds   = {600, 50, 150, 500}; ///< Placement of the colorbar
+    std::string mainImageHref = ""; ///< Image path or "data:image/png;base64,..."; empty = no embedded image
+    Rect mainImageBounds = {20, 20, 550, 550}; ///< Where to place the embedded raster image
+    Rect colorbarBounds   = {600, 50, 150, 500}; ///< Where to place the vector colorbar
 };
 
 // =========================================================================
@@ -310,70 +699,181 @@ struct SVGOptions {
 
 /// @brief Load a TrueType font from a .ttf file on disk.
 ///
-/// The font data is stored internally for the lifetime of the process.
-/// For zero-config usage, leave `Font::handle == nullptr` to use the
-/// embedded Inter font.
-/// @param ttfFilePath Path to a .ttf font file.
-/// @param size Font size in pixels (default 14).
+/// The font data is loaded and stored internally for the lifetime of the
+/// process. The returned `Font` contains an internal handle; you don't
+/// need to manage the memory.
+///
+/// @par Example
+/// @code
+/// // Linux
+/// Font font = loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16.0f);
+/// // macOS
+/// Font font = loadFont("/Library/Fonts/Arial.ttf", 14.0f);
+/// // Assign to style
+/// style.font = font;
+/// @endcode
+///
+/// @note For zero-config usage, leave `Font::handle == nullptr` (the
+/// default) — the embedded Inter font is used automatically. You only
+/// need to call `loadFont()` for custom typefaces.
+/// @note The font size is in **pixels** (height of the em-square), not
+/// points. At 14px, typical lowercase letters are ~7–8px tall.
+///
+/// @param ttfFilePath Path to a `.ttf` font file.
+/// @param size        Font size in pixels (default 14).
+///
 /// @return A Font with an internal handle. The caller does not own the
-///         returned resources.
+///         returned resources and should not free them.
+///
+/// @see Font, Style, Style::font
 Font loadFont(const char* ttfFilePath, float size = 14.0f);
 
 // --- Text measurement ---
 
 /// @brief Measure the pixel dimensions of a text string.
 ///
-/// Returns `{width, height}` in pixels for the given font.
-/// @param text The string to measure.
-/// @param font The font to use.
+/// Returns `{width, height}` in pixels when rendered with the given font.
+/// Useful for manual layout calculations.
+///
+/// @par Example
+/// @code
+/// auto dims = measureText("Temperature (°C)", style.font);
+/// // dims[0] = width in pixels, dims[1] = height in pixels
+/// printf("Title will be %.0f x %.0f pixels\n", dims[0], dims[1]);
+/// @endcode
+///
+/// @param text The string to measure (can contain Unicode characters).
+/// @param font The font to use for measurement.
+///
 /// @return `{width, height}` in pixels.
+///
+/// @see fontMetrics(), textAdvance(), Font
 std::array<float, 2> measureText(const std::string& text, const Font& font);
 
 /// @brief Get vertical font metrics (ascender, descender, line height).
-/// @param font The font.
-/// @return FontMetrics with all values in pixels.
+///
+/// All values are in pixels at the current `Font::size`. Use these for
+/// precise vertical text alignment when doing manual layouts.
+///
+/// @par Example
+/// @code
+/// auto m = fontMetrics(font);
+/// float textTop    = baseline - m.ascender;  // pixel Y of tallest glyph
+/// float textBottom = baseline - m.descender;  // pixel Y of lowest glyph
+/// // m.descender is negative, so: textBottom > baseline
+/// @endcode
+///
+/// @param font The font to query.
+///
+/// @return FontMetrics with `ascender`, `descender` (negative), and
+///         `lineHeight` (recommended line spacing), all in pixels.
+///
+/// @see FontMetrics, measureText(), Font
 FontMetrics fontMetrics(const Font& font);
 
-/// @brief Measure the horizontal advance (cursor position) up to a character
-/// index.
+/// @brief Measure the horizontal advance (cursor position) up to a
+/// character index.
 ///
-/// Useful for placing a cursor or selection indicator at a specific character
-/// position.
-/// @param font The font.
-/// @param text The full text string.
-/// @param upToIndex Measure advance for characters [0, upToIndex).
+/// Returns the X-offset from the start of the string to the position
+/// just before character at index `upToIndex`. Useful for placing a
+/// cursor, selection indicator, or aligning elements with specific
+/// character positions.
+///
+/// @par Example: get cursor position after the 5th character
+/// @code
+/// float cursorX = textAdvance(font, "Temperature", 5);
+/// // cursorX = X position right after "Tempe"
+/// @endcode
+///
+/// @param font      The font.
+/// @param text      The full text string.
+/// @param upToIndex Measure advance for characters `[0, upToIndex)`.
+///                  Use `text.size()` for the total string width.
+///
 /// @return X-offset from the start of the string in pixels.
+///
+/// @see measureText(), codepointAdvance()
 float textAdvance(const Font& font, const std::string& text, int upToIndex);
 
 /// @brief Get the kerning advance between two Unicode codepoints.
-/// @param font The font.
-/// @param leftCodepoint The left (preceding) codepoint.
-/// @param rightCodepoint The right (following) codepoint.
-/// @return Kerning adjustment in pixels (0 if no kerning pair exists).
+///
+/// Kerning is the adjustment to the horizontal spacing between specific
+/// pairs of characters (e.g., "AV" or "To"). This function returns the
+/// kerning offset (typically negative, meaning characters are pulled
+/// closer together).
+///
+/// @note Returns 0 if no kerning pair exists. Not all fonts have kerning
+/// tables.
+///
+/// @param font           The font.
+/// @param leftCodepoint  Unicode codepoint of the left (preceding) character.
+/// @param rightCodepoint Unicode codepoint of the right (following) character.
+///
+/// @return Kerning adjustment in pixels (negative = tighter, 0 = no kerning).
+///
+/// @see textAdvance(), measureText()
 float codepointAdvance(const Font& font, int leftCodepoint, int rightCodepoint);
 
 // --- Tick generation ---
 
 /// @brief Generate sensible major tick values and labels from a data scale.
 ///
-/// Uses a nice-numbers algorithm to produce human-readable ticks. Labels are
-/// formatted with `printf("%.*g", precision, value)`.
-/// @param scale The data domain.
-/// @param targetCount Desired number of ticks (algorithm chooses a nearby
-///        nice number of ticks).
-/// @param precision Significant digits for tick labels.
-/// @return A vector of Tick values (value + label).
+/// Uses a "nice numbers" algorithm to pick human-readable tick positions.
+/// For example, a linear scale from 0–100 with `targetCount=5` might
+/// produce ticks at 0, 20, 40, 60, 80, 100.
+///
+/// Labels are formatted using `printf("%.*g", precision, value)`, which
+/// produces compact floating-point labels.
+///
+/// @par Example
+/// @code
+/// Scale scale{ScaleType::Linear, 0.0f, 100.0f};
+/// auto ticks = generateTicks(scale, 5, 2);  // ~5 ticks, 2 significant digits
+/// // ticks might be: {0, "0"}, {20, "20"}, {40, "40"}, {60, "60"}, {80, "80"}, {100, "100"}
+/// @endcode
+///
+/// @par Behavior by scale type
+/// - **Linear**: Evenly spaced nice numbers between min and max.
+/// - **Logarithmic**: Powers-of-10 ticks (1, 10, 100, 1000…).
+/// - **Diverging**: Symmetric ticks around `midpoint`.
+/// - **Categorical**: One tick per colormap entry (integer indices).
+///
+/// @param scale       The data domain (min, max, type).
+/// @param targetCount Desired number of ticks. The algorithm chooses a nearby
+///                    "nice" number that may differ slightly.
+/// @param precision   Number of significant digits for tick labels
+///                    (same as `%.*g` in printf). Use 0 for integer labels.
+/// @return A vector of Tick values (value + label string).
+///
+/// @see generateSubTicks(), Tick, Spec::ticks, Style::tickPrecision
 std::vector<Tick>    generateTicks(const Scale& scale, int targetCount = 5, int precision = 6);
 
 /// @brief Generate sub-ticks (minor ticks) between the given major ticks.
 ///
-/// Only meaningful for linear and diverging scales; categorical/log scales
-/// return an empty vector.
-/// @param scale The data domain.
-/// @param majorTicks The major ticks (as returned by generateTicks()).
-/// @param subTicksPerInterval Number of sub-ticks between each pair of
-///        major ticks.
-/// @return A vector of SubTick values.
+/// For each pair of consecutive major ticks, this produces uniformly-spaced
+/// sub-ticks. For example, with major ticks at 0 and 10 and
+/// `subTicksPerInterval=4`, the sub-ticks would be at 2, 4, 6, 8.
+///
+/// @par Example
+/// @code
+/// Scale scale{ScaleType::Linear, 0.0f, 100.0f};
+/// auto majors = generateTicks(scale, 5);
+/// auto subs   = generateSubTicks(scale, majors, 4);  // 4 sub-ticks per interval
+/// spec.ticks    = std::move(majors);
+/// spec.subTicks = std::move(subs);
+/// @endcode
+///
+/// @note Only meaningful for Linear and Diverging scales. For Log and
+/// Categorical scales, this returns an empty vector.
+///
+/// @param scale              The data domain.
+/// @param majorTicks         The major tick positions (typically from
+///                           generateTicks()).
+/// @param subTicksPerInterval Number of evenly-spaced sub-ticks between each
+///                           consecutive pair of major ticks.
+/// @return A vector of SubTick values (unlabeled). Empty for log/categorical.
+///
+/// @see generateTicks(), Style::subTicksPerInterval, SubTick
 std::vector<SubTick> generateSubTicks(const Scale& scale,
                                        const std::vector<Tick>& majorTicks,
                                        int subTicksPerInterval = 4);
@@ -381,91 +881,263 @@ std::vector<SubTick> generateSubTicks(const Scale& scale,
 // --- Low-level drawing (pixel backend) ---
 
 /// @brief Fill the entire canvas with a solid color.
-/// @param canvas The target pixel buffer.
-/// @param color The fill color.
+///
+/// Call this before drawing to clear the canvas to a known background.
+/// For a light theme, fill with white; for dark, fill with black or a
+/// custom dark color.
+///
+/// @par Example
+/// @code
+/// // White background (light theme)
+/// fillCanvas(canvas, Color{255, 255, 255, 255});
+/// // Transparent background (for overlays / PNG export)
+/// fillCanvas(canvas, Color{0, 0, 0, 0});
+/// @endcode
+///
+/// @param canvas The target pixel buffer (modified in-place).
+/// @param color  The fill color — use `Color{255,255,255,255}` for white,
+///               `Color{0,0,0,0}` for transparent, or `Color::fromHex()`
+///               for custom colors.
+///
+/// @see Canvas, Color::fromHex(), Color::fromFloat()
 void fillCanvas(Canvas& canvas, Color color);
 
 /// @brief Draw the colorbar gradient (the colored bar itself) at the given
 /// bounds.
 ///
-/// The returned Rect may extend beyond the input bounds (e.g., to accommodate
-/// tick protrusions). Callers are responsible for leaving enough space.
-/// @param canvas Target pixel buffer.
-/// @param bounds Rectangle where the bar should be placed.
-/// @param spec Data + colormap specification.
-/// @param style Visual style.
-/// @param orientation Layout direction (vertical or horizontal).
-/// @return The actual bounding box including any protrusions.
+/// This is the core rendering function — it draws the continuous color
+/// ramp using the colormap specified in `spec.colormap`. The bar fills the
+/// given `bounds` rectangle. The returned `Rect` may be slightly wider or
+/// taller than the input bounds to accommodate frame outlines and tick
+/// protrusions.
+///
+/// @par Minimal example
+/// @code
+/// // Set up a canvas
+/// const int W = 600, H = 120;
+/// std::vector<uint32_t> buf(W * H);
+/// Canvas canvas{buf.data(), W, H};
+/// fillCanvas(canvas, Color{255, 255, 255, 255});  // white background
+///
+/// // Define what to draw
+/// auto cmap = util::viridis();
+/// Spec spec;
+/// spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+/// spec.colormap = cmap;
+///
+/// // Draw a horizontal bar
+/// Style style = Style::defaultLight();
+/// Rect barRect{50, 45, 500, 30};   // (x, y, width, height) in pixels
+/// Rect actual = drawColorBar(canvas, barRect, spec, style,
+///                             Orientation::Horizontal);
+/// @endcode
+///
+/// @param canvas      Target pixel buffer. Must be pre-allocated (see Canvas).
+/// @param bounds      Where to draw the bar — `{x, y, width, height}` in
+///                    pixels. (0,0) is top-left corner of the canvas.
+/// @param spec        What to draw — contains the Scale (data range) and
+///                    colormap (color LUT). See Spec for construction.
+/// @param style       How to draw — controls frame color, thickness, etc.
+///                    Start with `Style::defaultLight()` and customize.
+/// @param orientation `Orientation::Vertical` (top→bottom, default) or
+///                    `Orientation::Horizontal` (left→right).
+///
+/// @return The actual bounding box, which may extend beyond `bounds` to
+///         include the frame border. Use this rect to position tick marks
+///         with drawTicks().
+///
+/// @see drawTicks(), drawSubTicks(), drawLegend(), Spec, Style, Orientation
 Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style,
                   Orientation orientation = Orientation::Vertical);
 
 /// @brief Draw major tick marks and labels alongside the colorbar.
 ///
-/// Ticks are rendered at positions corresponding to `spec.ticks` (or
-/// auto-generated if empty). Tick labels protrude outward from the bar.
-/// @param canvas Target pixel buffer.
-/// @param barBounds The bounding box of the colorbar (as returned by
-///        drawColorBar()).
-/// @param spec Data specification (provides tick values).
-/// @param style Visual style.
-/// @param orientation Layout direction.
-/// @return The actual bounding box including tick labels.
+/// Renders tick lines and text labels at the positions specified in
+/// `spec.ticks`. If `spec.ticks` is empty, ticks are auto-generated.
+///
+/// Tick labels are placed **outside** the bar by default (to the right for
+/// vertical bars, below for horizontal bars). Set `style.ticksInward = true`
+/// to draw ticks pointing into the bar instead.
+///
+/// @par Example
+/// @code
+/// // First draw the bar, then add ticks alongside it:
+/// Rect barRect{50, 45, 500, 30};
+/// drawColorBar(canvas, barRect, spec, style, Orientation::Horizontal);
+/// drawTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+///
+/// // Or with custom tick labels:
+/// spec.ticks = {
+///     {0.0f, "min"},
+///     {50.0f, "mid"},
+///     {100.0f, "max"},
+/// };
+/// drawTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+/// @endcode
+///
+/// @param canvas      Target pixel buffer.
+/// @param barBounds   The bounding box of the colorbar (as returned by
+///                    drawColorBar(), or the same Rect you passed to it).
+/// @param spec        Provides tick values via `spec.ticks`. If empty,
+///                    ticks are auto-generated using generateTicks().
+/// @param style       Visual style — controls tick color, length,
+///                    font, and label precision. See Style.
+/// @param orientation `Orientation::Vertical` (default) or
+///                    `Orientation::Horizontal`.
+///
+/// @return The bounding box that encloses both the bar and all tick labels.
+///
+/// @see drawColorBar(), drawSubTicks(), generateTicks(), Style, Tick
 Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
                Orientation orientation = Orientation::Vertical);
 
 /// @brief Draw sub-ticks (minor ticks) between major ticks.
 ///
-/// Sub-ticks are drawn without labels at positions from `spec.subTicks`
-/// (or auto-generated if empty).
-/// @param canvas Target pixel buffer.
-/// @param barBounds The bounding box of the colorbar.
-/// @param spec Data specification.
-/// @param style Visual style.
-/// @param orientation Layout direction.
-/// @return The actual bounding box.
+/// Sub-ticks are short, unlabeled lines drawn between major tick positions.
+/// They provide finer visual graduation. Sub-ticks are only meaningful for
+/// Linear and Diverging scales.
+///
+/// @par Example
+/// @code
+/// Rect barRect{50, 45, 500, 30};
+/// drawColorBar(canvas, barRect, spec, style, Orientation::Horizontal);
+/// drawTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+/// drawSubTicks(canvas, barRect, spec, style, Orientation::Horizontal);
+/// @endcode
+///
+/// @param canvas      Target pixel buffer.
+/// @param barBounds   The bounding box of the colorbar.
+/// @param spec        Provides sub-tick values via `spec.subTicks`. If empty,
+///                    sub-ticks are auto-generated using generateSubTicks().
+/// @param style       Visual style — controls sub-tick length via
+///                    `style.subTickLength`, count via
+///                    `style.subTicksPerInterval`, and visibility via
+///                    `style.showSubTicks`.
+/// @param orientation `Orientation::Vertical` (default) or `Horizontal`.
+///
+/// @return The bounding box including sub-tick protrusions.
+///
+/// @see drawTicks(), generateSubTicks(), Style::showSubTicks,
+///      Style::subTicksPerInterval
 Rect drawSubTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style,
                   Orientation orientation = Orientation::Vertical);
 
 /// @brief Draw the colorbar title text.
+///
+/// Renders a text string (typically `spec.title`) into the given bounds
+/// rectangle. The text is **centered horizontally** within the bounds and
+/// positioned at the top of the bounds area.
+///
+/// @par Example (title above a horizontal bar)
+/// @code
+/// Rect barRect{50, 45, 500, 30};
+/// Rect titleRect{barRect.x, 5, barRect.width, 35};  // centered above bar
+/// drawTitle(canvas, titleRect, spec.title, style);
+/// @endcode
+///
 /// @param canvas Target pixel buffer.
-/// @param bounds Rectangle where the title should be placed.
-/// @param title The title string.
-/// @param style Visual style (determines font and color).
-/// @return The actual bounding box of the rendered title.
+/// @param bounds Rectangle where the title should be placed. The title is
+///               centered horizontally and positioned at the vertical top
+///               of this rect.
+/// @param title  The text string to render (e.g., `"Temperature (°C)"`).
+/// @param style  Visual style — uses `style.font` for typeface/size and
+///               `style.textColor` for the text color.
+///
+/// @return The actual bounding box of the rendered text (may be smaller
+///         than `bounds` if the text is short).
+///
+/// @see drawLegend(), computeLegendLayout(), Spec::title, Style
 Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
 
 // --- High-level convenience ---
 
 /// @brief Compute a unified layout for a colorbar legend.
 ///
-/// Returns pre-computed bounds for the title and the colorbar that are
-/// suitable for both raster (drawLegend) and vector (exportLegendToSVG)
-/// backends. Using this function ensures identical placement across
+/// Analyzes the spec and style to produce pre-computed bounding boxes for
+/// the title and colorbar. The resulting layout is suitable for both raster
+/// (PNG/PPM) and vector (SVG) backends, ensuring identical placement across
 /// output formats.
+///
+/// @par Usage
+/// @code
+/// auto layout = computeLegendLayout(300, 600, spec, style);
+/// // layout.titleBounds — where to draw the title
+/// // layout.barBounds   — where to draw the colorbar + ticks
+/// @endcode
+///
+/// @note This is the layout engine used internally by drawLegend(). Call it
+/// directly when you need the same layout for both raster and vector output,
+/// or when you want to inspect/modify the layout before drawing.
 ///
 /// @param canvasWidth  Total canvas width in pixels.
 /// @param canvasHeight Total canvas height in pixels.
-/// @param spec         Data + colormap specification (title used for sizing).
+/// @param spec         Data + colormap specification (title text used for
+///                     sizing the title area).
 /// @param style        Visual style (font size determines text dimensions).
-/// @param orientation  Layout direction (Vertical or Horizontal).
-/// @return LegendLayout with titleBounds and barBounds.
+/// @param orientation  `Orientation::Vertical` (default) or `Horizontal`.
+///
+/// @return LegendLayout with `titleBounds` and `barBounds` ready to use.
+///
+/// @see drawLegend(), exportLegendToSVG(), LegendLayout
 LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
                                   const Spec& spec, const Style& style,
                                   Orientation orientation = Orientation::Vertical);
 
 /// @brief Render a complete colorbar legend with sensible defaults.
 ///
-/// This is the high-level convenience function for rapid prototyping.
-/// It draws the bar, ticks, labels, and title into the canvas using
-/// computeLegendLayout() for consistent placement.
+/// This is the **high-level convenience function** — the fastest way to
+/// get a colorbar on screen. It automatically computes the layout, draws
+/// the gradient bar, major and sub-ticks, labels, and title. Use this for
+/// rapid prototyping, debug overlays, and whenever you don't need
+/// pixel-level control over element placement.
 ///
-/// For publication-quality output with precise spatial control, use the
-/// low-level API (drawColorBar, drawTicks, drawTitle) separately.
-/// @param canvas Target pixel buffer.
-/// @param spec Data + colormap specification.
-/// @param style Visual style (defaults to light theme).
-/// @param orientation Layout direction (Vertical or Horizontal).
-/// @return LayoutResult with the actual bounding boxes used.
+/// @par Quick-start example (vertical colorbar)
+/// @code
+/// #define SCIBAR_IMPLEMENTATION
+/// #include "scibar.hpp"
+///
+/// int main() {
+///     using namespace scibar;
+///
+///     const int W = 200, H = 500;
+///     std::vector<uint32_t> buf(W * H);
+///     Canvas canvas{buf.data(), W, H};
+///     fillCanvas(canvas, Color{255, 255, 255, 255});
+///
+///     auto cmap = util::viridis();
+///     Spec spec;
+///     spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+///     spec.title    = "Temperature (°C)";
+///     spec.colormap = cmap;
+///
+///     drawLegend(canvas, spec, Style::defaultLight());
+///     writePPM(canvas, "colorbar.ppm");
+///     return 0;
+/// }
+/// @endcode
+///
+/// @par When to use the low-level API instead
+/// Use `drawColorBar()`, `drawTicks()`, and `drawTitle()` individually when
+/// you need:
+/// - Horizontal orientation with custom positioning
+/// - Manual control over tick label positions
+/// - Mixing scibar elements with other custom graphics
+///
+/// @param canvas      Target pixel buffer. Should be pre-filled with a
+///                    background color (e.g., white for light themes).
+/// @param spec        What to draw — scale, colormap, title, and optionally
+///                    custom ticks. See Spec for construction.
+/// @param style       How to draw — use `Style::defaultLight()` for black
+///                    on transparent, `Style::defaultDark()` for white on
+///                    transparent, or customize individual fields.
+/// @param orientation `Orientation::Vertical` (default, top→bottom) or
+///                    `Orientation::Horizontal` (left→right).
+///
+/// @return LayoutResult with the actual bounding boxes used. You can ignore
+///         the return value if you just want to save the output.
+///
+/// @see drawColorBar(), drawTicks(), drawTitle(), computeLegendLayout(),
+///      exportLegendToSVG(), LayoutResult
 LayoutResult drawLegend(Canvas& canvas, const Spec& spec,
                         const Style& style = Style::defaultLight(),
                         Orientation orientation = Orientation::Vertical);
@@ -474,18 +1146,50 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec,
 
 /// @brief Export the colorbar as a standalone or hybrid SVG document.
 ///
-/// Generates clean, human-readable SVG XML. For continuous scales, uses
-/// `<linearGradient>`; for categorical scales, uses individual `<rect>`
-/// elements to prevent anti-aliasing seams.
+/// Generates clean, human-readable SVG XML suitable for direct inclusion
+/// in publication figures. For continuous scales, uses `<linearGradient>`
+/// with discrete `<stop>` elements; for categorical scales, uses individual
+/// `<rect>` elements to prevent anti-aliasing seams between categories.
 ///
-/// If `SVGOptions::mainImageHref` is set, a raster image (e.g., a 3D mesh
-/// render) is embedded via an `<image>` tag with `image-rendering="crisp-edges"`
-/// to prevent bilinear blurring of scientific data.
-/// @param spec Data + colormap specification.
-/// @param style Visual style (defaults to light theme).
-/// @param options SVG canvas size and layout.
-/// @param orientation Layout direction.
-/// @return Complete SVG document as a string.
+/// @par Standalone SVG colorbar
+/// @code
+/// SVGOptions opts;
+/// opts.totalWidth  = 300;
+/// opts.totalHeight = 600;
+/// opts.colorbarBounds = {50, 50, 120, 500};
+///
+/// std::string svg = exportToSVG(spec, Style::defaultLight(), opts);
+/// std::ofstream out("colorbar.svg");
+/// out << svg;
+/// @endcode
+///
+/// @par Hybrid figure (raster image + vector colorbar)
+/// @code
+/// SVGOptions opts;
+/// opts.totalWidth   = 800;
+/// opts.totalHeight  = 600;
+/// opts.mainImageHref = "rendered_brain.png";
+/// opts.mainImageBounds = {20, 20, 550, 550};
+/// opts.colorbarBounds  = {600, 50, 120, 500};
+///
+/// std::string svg = exportToSVG(spec, Style::defaultLight(), opts);
+/// @endcode
+///
+/// @note If `SVGOptions::mainImageHref` is set, a raster image is embedded
+/// via an `<image>` tag with `image-rendering="crisp-edges"` to prevent
+/// bilinear blurring of scientific data.
+/// @note The returned string is a complete, standalone SVG document — you
+/// can write it directly to a `.svg` file.
+///
+/// @param spec        Data + colormap specification.
+/// @param style       Visual style (controls colors, font, tick sizes).
+/// @param options     SVG canvas size (`totalWidth`, `totalHeight`) and
+///                    element placement (`colorbarBounds`, `mainImageBounds`).
+/// @param orientation `Orientation::Vertical` (default) or `Horizontal`.
+///
+/// @return Complete SVG document as a `std::string`, ready to write to disk.
+///
+/// @see exportLegendToSVG(), SVGOptions, Spec
 std::string exportToSVG(const Spec& spec,
                         const Style& style = Style::defaultLight(),
                         const SVGOptions& options = {},
@@ -493,16 +1197,32 @@ std::string exportToSVG(const Spec& spec,
 
 /// @brief Export a complete colorbar legend to SVG using automatic layout.
 ///
-/// High-level SVG convenience that mirrors drawLegend(). Uses
-/// computeLegendLayout() internally so raster and vector output share
-/// identical placement.
+/// High-level SVG convenience that mirrors drawLegend(). Internally uses
+/// computeLegendLayout() so raster and vector output share identical
+/// placement. This is the easiest way to get an SVG colorbar — just specify
+/// the canvas size and scibar handles the rest.
+///
+/// @par Example
+/// @code
+/// std::string svg = exportLegendToSVG(spec, Style::defaultLight(),
+///                                      300, 600, Orientation::Vertical);
+/// std::ofstream out("colorbar.svg");
+/// out << svg;
+/// @endcode
+///
+/// @note This is the SVG equivalent of drawLegend(). If you need precise
+/// control over element placement (e.g., for hybrid figures), use
+/// exportToSVG() with SVGOptions instead.
 ///
 /// @param spec         Data + colormap specification.
 /// @param style        Visual style (defaults to light theme).
 /// @param canvasWidth  SVG canvas width in pixels.
 /// @param canvasHeight SVG canvas height in pixels.
-/// @param orientation  Layout direction (Vertical or Horizontal).
+/// @param orientation  `Orientation::Vertical` (default) or `Horizontal`.
+///
 /// @return Complete SVG document as a string.
+///
+/// @see exportToSVG(), drawLegend(), computeLegendLayout()
 std::string exportLegendToSVG(const Spec& spec,
                                const Style& style = Style::defaultLight(),
                                int canvasWidth = 300, int canvasHeight = 600,
@@ -513,11 +1233,32 @@ std::string exportLegendToSVG(const Spec& spec,
 /// @brief Write a Canvas as a PPM (Netpbm P3) image file.
 ///
 /// PPM is a plain-text, zero-dependency format readable by virtually all
-/// image tools (ImageMagick, GIMP, browsers via convert, etc.). Use this
-/// when you want a quick raster output without linking stb_image_write.
+/// image tools: ImageMagick (`convert colorbar.ppm colorbar.png`), GIMP,
+/// `feh`, browsers, etc. Use this for quick raster output without linking
+/// additional libraries like stb_image_write.
+///
+/// @par Example
+/// @code
+/// drawLegend(canvas, spec, style);
+/// if (!writePPM(canvas, "colorbar.ppm")) {
+///     fprintf(stderr, "Failed to write PPM file\n");
+/// }
+/// // Then convert to PNG: $ convert colorbar.ppm colorbar.png
+/// @endcode
+///
+/// @note PPM files can be large (ASCII encoding). For production use,
+/// consider writing PNG directly using stb_image_write (see the
+/// full_CLI_demo_app example).
+///
 /// @param canvas The rendered pixel buffer.
-/// @param path   Output file path (e.g., "colorbar.ppm").
-/// @return true on success, false on failure.
+/// @param path   Output file path (e.g., `"colorbar.ppm"` or
+///               `"/tmp/output.ppm"`).
+///
+/// @return `true` if the file was written successfully, `false` if the
+///         file could not be opened (e.g., directory doesn't exist,
+///         permissions denied, or canvas has no pixels).
+///
+/// @see Canvas, fillCanvas()
 bool writePPM(const Canvas& canvas, const char* path);
 
 } // namespace scibar
@@ -526,18 +1267,40 @@ bool writePPM(const Canvas& canvas, const char* path);
 // Built-in colormaps (utility namespace)
 // =========================================================================
 
-/// @brief Built-in colormaps exposed as free functions.
+/// @brief Built-in colormaps and color utilities.
 ///
 /// These functions return 256-entry RGBA lookup tables suitable for
-/// `Spec::colormap`. The returned vectors are backed by static data and are
-/// cheap to call repeatedly.
+/// `Spec::colormap`:
+/// - `viridis()` — sequential (blue→green→yellow), for ordered data.
+/// - `vik()` — diverging (blue→yellow→red), for data with a center point.
+///
+/// The returned vectors are backed by static data and are cheap to call
+/// repeatedly (zero allocation after the first call).
+///
+/// @see sampleColormap(), ColorMapView, Spec
 namespace scibar::util {
 
-/// @brief  The Viridis perceptually-uniform sequential colormap (256 entries).
+/// @brief The Viridis perceptually-uniform sequential colormap (256 entries).
 ///
 /// Returns a 256-entry RGBA lookup table suitable for `Spec::colormap`.
+/// Viridis is the standard sequential colormap — perceptually uniform
+/// (equal steps in data produce equal perceived color differences),
+/// colorblind-friendly, and prints well in grayscale.
+///
+/// @par Usage
+/// @code
+/// auto cmap = scibar::util::viridis();
+/// spec.colormap = cmap;  // assign to Spec (keep cmap alive!)
+/// @endcode
+///
+/// @note Use with `ScaleType::Linear` or `ScaleType::Logarithmic`.
+/// Not suitable for diverging data — use vik() instead.
+///
 /// Data source: matplotlib viridis, identical to the official reference.
+///
 /// @return A 256-entry vector of Color values.
+///
+/// @see vik(), sampleColormap(), ColorMapView
 inline std::vector<scibar::Color> viridis() {
     static const float lut[] = {
         0.267004f, 0.004874f, 0.329415f, 0.268510f, 0.009605f, 0.335427f,
@@ -682,12 +1445,32 @@ inline std::vector<scibar::Color> viridis() {
     return cmap;
 }
 
-/// @brief  The Vik (Crameri) perceptually-uniform diverging colormap (256 entries).
+/// @brief The Vik (Crameri) perceptually-uniform diverging colormap
+/// (256 entries).
 ///
-/// Returns a 256-entry RGBA lookup table suitable for Spec::colormap
-/// with ScaleType::Diverging. Vik is a blue→yellow→red diverging colormap
-/// designed for scientific visualization. CVD-friendly, no false banding.
+/// Returns a 256-entry RGBA lookup table designed for diverging data
+/// scales. Vik runs from blue (low/negative) through yellow (midpoint)
+/// to red (high/positive). It is:
+/// - Perceptually uniform
+/// - Color-vision-deficiency (CVD) friendly
+/// - Free of false banding artifacts
+///
+/// @par Usage
+/// @code
+/// auto cmap = scibar::util::vik();
+/// spec.colormap = cmap;
+/// spec.scale = Scale{ScaleType::Diverging, -3.0f, 3.0f, 0.0f};
+/// @endcode
+///
+/// @note Designed for `ScaleType::Diverging`. The colormap is split at the
+/// center: the first 128 entries map to values below the midpoint, the last
+/// 128 map to values above.
+///
 /// Data source: Fabio Crameri, ScientificColourMaps7 (CC0 license).
+///
+/// @return A 256-entry vector of Color values.
+///
+/// @see viridis(), sampleColormap(), ColorMapView, ScaleType::Diverging
 inline std::vector<scibar::Color> vik() {
     static const float lut[] = {
         0.001328f, 0.069836f, 0.379529f, 0.002366f, 0.076475f, 0.383518f,
@@ -835,11 +1618,32 @@ inline std::vector<scibar::Color> vik() {
 /// @brief Sample a color from a colormap at a normalized position using
 /// linear interpolation between adjacent entries.
 ///
-/// @param cmap The colormap to sample from.  Must not be empty.
-/// @param t   Normalized position in [0, 1].  Clamped to this range.
-///            0.0 = first color, 1.0 = last color.
-/// @return The linearly interpolated color at position t, or black if the
-///         colormap is empty.
+/// Given a position `t` in [0, 1] (where 0 = first color, 1 = last color),
+/// returns the interpolated color. If `t` falls between two colormap
+/// entries, linear interpolation blends them smoothly.
+///
+/// @par Example
+/// @code
+/// auto cmap = scibar::util::viridis();
+/// ColorMapView view(cmap);
+///
+/// Color first = sampleColormap(view, 0.0f);   // first color (dark blue)
+/// Color mid   = sampleColormap(view, 0.5f);   // middle color (green)
+/// Color last  = sampleColormap(view, 1.0f);   // last color (yellow)
+/// @endcode
+///
+/// @note `t` is clamped to [0, 1]. Values outside this range produce the
+/// first or last color.
+///
+/// @param cmap The colormap to sample from. Must not be empty (if empty,
+///             returns black).
+/// @param t    Normalized position in [0, 1]. 0.0 = first entry,
+///             1.0 = last entry. Clamped to this range.
+///
+/// @return The linearly interpolated color at position `t`, or `Color{}`
+///         (black) if the colormap is empty.
+///
+/// @see ColorMapView, viridis(), vik()
 inline Color sampleColormap(const ColorMapView& cmap, float t) {
     if (cmap.size == 0) return Color{};
     if (cmap.size == 1) return cmap.data[0];
