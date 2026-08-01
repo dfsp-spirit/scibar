@@ -68,7 +68,11 @@ spec.ticks = {
 
 ### Q: Why don't my elements fit? The ticks go off-screen!
 
-scibar is **not a layout engine**.  Each draw function renders exactly
+scibar is **not a layout engine**. We provide sane defaults for the high-level API,
+but if they do not work for you, e.g., because you need a very long title text, you may have
+to use the low level API instead, where you can customize positions to your needs.
+
+With the low-level API, each draw function renders exactly
 at the coordinates you pass in `Rect bounds`, with ticks and labels
 protruding outward.  You are responsible for leaving enough space.
 
@@ -197,7 +201,7 @@ behavior is undefined — the caller is responsible for providing valid data.
 
 ### Q: Does scibar throw exceptions?
 
-No.  scibar does not throw exceptions and does not use error codes.
+No. scibar does not throw exceptions and does not use error codes.
 Invalid input triggers assertions in debug builds.  This is a deliberate
 design choice: scibar is a low-level building block, and the caller is
 expected to validate inputs.
