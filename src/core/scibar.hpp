@@ -61,6 +61,15 @@
 #ifndef SCIBAR_HPP
 #define SCIBAR_HPP
 
+// =========================================================================
+// Version
+// =========================================================================
+
+#define SCIBAR_VERSION        "0.1.0"
+#define SCIBAR_VERSION_MAJOR  0
+#define SCIBAR_VERSION_MINOR  1
+#define SCIBAR_VERSION_PATCH  0
+
 #include <string>
 #include <vector>
 #include <cstdint>

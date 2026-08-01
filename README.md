@@ -115,6 +115,12 @@ Our [full example applications](./examples/) use these additional tools:
 
 Once more, thank you!
 
+
+## Developer Information
+
+Please see [README_DEVELOPMENT.md](./README_DEVELOPMENT.md).
+
+
 ## Author & License
 
 * License: [MIT](./LICENSE)

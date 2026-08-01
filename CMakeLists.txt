@@ -1,5 +1,20 @@
 cmake_minimum_required(VERSION 3.14)
-project(scibar VERSION 1.0.0 LANGUAGES CXX)
+project(scibar VERSION 0.1.0 LANGUAGES CXX)
+
+# -----------------------------------------------------------------------
+# Verify that the version in scibar.hpp matches the CMake project version.
+# This prevents the two from drifting out of sync.
+# -----------------------------------------------------------------------
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/core/scibar.hpp" _scibar_ver_line
+     REGEX "^#define SCIBAR_VERSION[^_]")
+string(REGEX REPLACE ".*\"([0-9]+\\.[0-9]+\\.[0-9]+)\".*" "\\1"
+       _scibar_header_ver "${_scibar_ver_line}")
+if(NOT _scibar_header_ver STREQUAL PROJECT_VERSION)
+    message(FATAL_ERROR
+        "scibar.hpp version (${_scibar_header_ver}) does not match "
+        "CMake project version (${PROJECT_VERSION}). "
+        "Please update both simultaneously.")
+endif()
 
 # =========================================================================
 # scibar — Single-Header Scientific Colorbar Rendering for C++17

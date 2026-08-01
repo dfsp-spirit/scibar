@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
-project(scibar_tests CXX)
+project(scibar_tests LANGUAGES CXX)
+
 
 # Bring in scibar INTERFACE target if building standalone
 if(NOT TARGET scibar)
