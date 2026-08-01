@@ -3,11 +3,11 @@
 #include "scibar.hpp"
 
 #include <cmath>
+#include <filesystem>
 #include <string>
 #include <sstream>
 #include <fstream>
 #include <algorithm>
-#include <cstdlib>
 
 // =========================================================================
 // Pixel helpers
@@ -1506,10 +1506,10 @@ static scibar::Style makeComparisonStyle() {
     return style;
 }
 
-// Helper: ensure output directory exists (best-effort, no error on failure)
+// Helper: ensure output directory exists
 static void ensureOutputDir() {
-    // Use cstdlib system — portable enough for test scaffolding
-    (void)system(("mkdir -p " + std::string(OUTPUT_DIR)).c_str());
+    std::error_code ec;
+    std::filesystem::create_directories(OUTPUT_DIR, ec);
 }
 
 // Helper: count dark (non-background) pixels in a rectangular region
@@ -1943,4 +1943,107 @@ TEST_CASE("inverted plus reverseColors cancel on continuous", "[draw][inverted]"
     REQUIRE(defBuf[topY * W + midX] == bothBuf[topY * W + midX]);
     REQUIRE(defBuf[midY * W + midX] == bothBuf[midY * W + midX]);
     REQUIRE(defBuf[botY * W + midX] == bothBuf[botY * W + midX]);
+}
+
+TEST_CASE("sampleColormap basic", "[util]") {
+    // Build a simple 4-entry colormap: black, red, green, white
+    std::vector<scibar::Color> entries = {
+        scibar::Color{0, 0, 0, 255},       // 0: black
+        scibar::Color{255, 0, 0, 255},     // 1: red
+        scibar::Color{0, 255, 0, 255},     // 2: green
+        scibar::Color{255, 255, 255, 255}   // 3: white
+    };
+    scibar::ColorMapView cmap(entries);
+
+    // t = 0.0 → first entry (black)
+    auto c0 = scibar::util::sampleColormap(cmap, 0.0f);
+    REQUIRE(c0.r == 0);
+    REQUIRE(c0.g == 0);
+    REQUIRE(c0.b == 0);
+
+    // t = 1.0 → last entry (white)
+    auto c1 = scibar::util::sampleColormap(cmap, 1.0f);
+    REQUIRE(c1.r == 255);
+    REQUIRE(c1.g == 255);
+    REQUIRE(c1.b == 255);
+
+    // t = 1.0/3.0 → exactly at index 1 (red)
+    auto cRed = scibar::util::sampleColormap(cmap, 1.0f / 3.0f);
+    REQUIRE(cRed.r == 255);
+    REQUIRE(cRed.g == 0);
+    REQUIRE(cRed.b == 0);
+
+    // t = 2.0/3.0 → exactly at index 2 (green)
+    auto cGreen = scibar::util::sampleColormap(cmap, 2.0f / 3.0f);
+    REQUIRE(cGreen.r == 0);
+    REQUIRE(cGreen.g == 255);
+    REQUIRE(cGreen.b == 0);
+
+    // t = 0.5 → halfway between red (1) and green (2): (128, 128, 0)
+    auto cMid = scibar::util::sampleColormap(cmap, 0.5f);
+    REQUIRE(cMid.r == 128);
+    REQUIRE(cMid.g == 128);
+    REQUIRE(cMid.b == 0);
+}
+
+TEST_CASE("sampleColormap clamping", "[util]") {
+    std::vector<scibar::Color> entries = {
+        scibar::Color{10, 20, 30, 255},
+        scibar::Color{100, 200, 250, 255}
+    };
+    scibar::ColorMapView cmap(entries);
+
+    // t < 0 → clamped to first entry
+    auto cNeg = scibar::util::sampleColormap(cmap, -0.5f);
+    REQUIRE(cNeg.r == 10);
+    REQUIRE(cNeg.g == 20);
+    REQUIRE(cNeg.b == 30);
+
+    // t > 1 → clamped to last entry
+    auto cOver = scibar::util::sampleColormap(cmap, 2.0f);
+    REQUIRE(cOver.r == 100);
+    REQUIRE(cOver.g == 200);
+    REQUIRE(cOver.b == 250);
+}
+
+TEST_CASE("sampleColormap edge cases", "[util]") {
+    // Empty colormap → returns black
+    scibar::ColorMapView emptyMap;
+    auto cEmpty = scibar::util::sampleColormap(emptyMap, 0.5f);
+    REQUIRE(cEmpty.r == 0);
+    REQUIRE(cEmpty.g == 0);
+    REQUIRE(cEmpty.b == 0);
+    REQUIRE(cEmpty.a == 255);
+
+    // Single-entry colormap → always returns that color
+    std::vector<scibar::Color> single = {scibar::Color{42, 99, 200, 255}};
+    scibar::ColorMapView singleMap(single);
+    auto cS0 = scibar::util::sampleColormap(singleMap, 0.0f);
+    auto cS1 = scibar::util::sampleColormap(singleMap, 1.0f);
+    auto cS5 = scibar::util::sampleColormap(singleMap, 0.5f);
+    REQUIRE(cS0.r == 42); REQUIRE(cS0.g == 99); REQUIRE(cS0.b == 200);
+    REQUIRE(cS1.r == 42); REQUIRE(cS1.g == 99); REQUIRE(cS1.b == 200);
+    REQUIRE(cS5.r == 42); REQUIRE(cS5.g == 99); REQUIRE(cS5.b == 200);
+}
+
+TEST_CASE("sampleColormap with viridis", "[util]") {
+    auto viridis = scibar::util::viridis();
+
+    // t=0 should match first viridis entry (dark purple)
+    auto cFirst = scibar::util::sampleColormap(viridis, 0.0f);
+    REQUIRE(cFirst.r < 80);
+    REQUIRE(cFirst.g < 10);
+    REQUIRE(cFirst.b > 80);
+
+    // t=1 should match last viridis entry (bright yellow)
+    auto cLast = scibar::util::sampleColormap(viridis, 1.0f);
+    REQUIRE(cLast.r > 230);
+    REQUIRE(cLast.g > 220);
+    REQUIRE(cLast.b < 60);
+
+    // All samples should be fully opaque
+    for (float t = 0.0f; t <= 1.0f; t += 0.1f) {
+        auto c = scibar::util::sampleColormap(viridis, t);
+        REQUIRE(c.a == 255);
+    }
 }

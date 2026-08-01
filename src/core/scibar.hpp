@@ -832,6 +832,43 @@ inline std::vector<scibar::Color> vik() {
     return cmap;
 }
 
+/// @brief Sample a color from a colormap at a normalized position using
+/// linear interpolation between adjacent entries.
+///
+/// @param cmap The colormap to sample from.  Must not be empty.
+/// @param t   Normalized position in [0, 1].  Clamped to this range.
+///            0.0 = first color, 1.0 = last color.
+/// @return The linearly interpolated color at position t, or black if the
+///         colormap is empty.
+inline Color sampleColormap(const ColorMapView& cmap, float t) {
+    if (cmap.size == 0) return Color{};
+    if (cmap.size == 1) return cmap.data[0];
+
+    // Clamp t to [0, 1]
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+
+    float idx = t * static_cast<float>(cmap.size - 1);
+    size_t lo = static_cast<size_t>(idx);
+    size_t hi = (lo + 1 < cmap.size) ? (lo + 1) : lo;
+    float frac = idx - static_cast<float>(lo);
+
+    const Color& cLo = cmap.data[lo];
+    const Color& cHi = cmap.data[hi];
+
+    auto lerp = [](uint8_t a, uint8_t b, float f) -> uint8_t {
+        return static_cast<uint8_t>(static_cast<float>(a) +
+                                    (static_cast<float>(b) - static_cast<float>(a)) * f + 0.5f);
+    };
+
+    return Color{
+        lerp(cLo.r, cHi.r, frac),
+        lerp(cLo.g, cHi.g, frac),
+        lerp(cLo.b, cHi.b, frac),
+        lerp(cLo.a, cHi.a, frac)
+    };
+}
+
 } // namespace scibar::util
 
 
