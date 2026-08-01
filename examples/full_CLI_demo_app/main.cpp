@@ -395,19 +395,25 @@ static BarLayout computeBarLayout(int canvasW, int canvasH, int cfgThickness,
     bl.barLen   = (ori == scibar::Orientation::Vertical)
                       ? (canvasH - 2 * bl.margin)
                       : (canvasW - 2 * bl.margin);
-    bl.barX = bl.margin;
-    bl.barY = bl.margin;
 
-    if (ori == scibar::Orientation::Horizontal) {
-        bl.barX += 80;  // room for title on left
-        bl.barY += 30;  // room for title above
-        bl.barLen = canvasW - 2 * bl.margin - 80;
-    } else if (titleHeight > 0) {
-        // Reserve space for title above the bar in vertical orientation
-        int neededTop = titleHeight + 5;
+    if (ori == scibar::Orientation::Vertical) {
+        // Center the bar horizontally
+        bl.barX = (canvasW - bl.barThick) / 2;
+        bl.barY = bl.margin;
+    } else {
+        // Horizontal: bar runs left-to-right, centered
+        bl.barX = (canvasW - bl.barLen) / 2;
+        bl.barY = bl.margin;
+    }
+
+    if (titleHeight > 0) {
+        // Reserve space for title above the bar
+        int neededTop = titleHeight + bl.margin;
         if (bl.barY < neededTop) {
             bl.barY = neededTop;
-            bl.barLen = canvasH - bl.barY - bl.margin;
+            if (ori == scibar::Orientation::Vertical) {
+                bl.barLen = canvasH - bl.barY - bl.margin;
+            }
         }
     }
     return bl;
@@ -467,7 +473,7 @@ static void renderSVG(const AppConfig& cfg, const scibar::Spec& spec,
     auto bl = computeBarLayout(cfg.canvasW, cfg.canvasH, cfg.barThickness, cfg.barMargin, ori, titleH);
 
     if (ori == scibar::Orientation::Vertical) {
-        opts.colorbarBounds = {bl.barX + 80, bl.barY, bl.barThick, bl.barLen};
+        opts.colorbarBounds = {bl.barX, bl.barY, bl.barThick, bl.barLen};
     } else {
         opts.colorbarBounds = {bl.barX, bl.barY, bl.barLen, bl.barThick};
     }

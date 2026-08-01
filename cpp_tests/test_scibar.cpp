@@ -5,6 +5,9 @@
 #include <cmath>
 #include <string>
 #include <sstream>
+#include <fstream>
+#include <algorithm>
+#include <cstdlib>
 
 // =========================================================================
 // Pixel helpers
@@ -83,6 +86,169 @@ static std::vector<float> extractSvgTextX(const std::string& svg) {
         pos++;
     }
     return xs;
+}
+
+/// Extract all <text> element {x, y} positions from an SVG string.
+static std::vector<std::array<float, 2>> extractSvgTextPositions(const std::string& svg) {
+    std::vector<std::array<float, 2>> positions;
+    size_t pos = 0;
+    while (true) {
+        pos = svg.find("<text ", pos);
+        if (pos == std::string::npos) break;
+
+        float x = 0.0f, y = 0.0f;
+        size_t xPos = svg.find("x=\"", pos);
+        if (xPos != std::string::npos) {
+            x = std::stof(svg.substr(xPos + 3));
+        }
+        size_t yPos = svg.find("y=\"", pos);
+        if (yPos != std::string::npos) {
+            y = std::stof(svg.substr(yPos + 3));
+        }
+        positions.push_back({x, y});
+        pos++;
+    }
+    return positions;
+}
+
+/// Extract the title <text> element position {x, y} from an SVG string.
+/// Searches for a <text> element containing the exact title content string.
+static std::array<float, 2> extractSvgTitlePosition(const std::string& svg,
+                                                      const std::string& titleText) {
+    // Find the title text content in the SVG
+    size_t contentPos = svg.find(">" + titleText + "<");
+    if (contentPos == std::string::npos) return {0.0f, 0.0f};
+
+    // Search backwards for the nearest <text tag
+    size_t textStart = svg.rfind("<text ", contentPos);
+    if (textStart == std::string::npos || textStart > contentPos) return {0.0f, 0.0f};
+
+    float x = 0.0f, y = 0.0f;
+    size_t xPos = svg.find("x=\"", textStart);
+    if (xPos != std::string::npos && xPos < contentPos) {
+        x = std::stof(svg.substr(xPos + 3));
+    }
+    size_t yPos = svg.find("y=\"", textStart);
+    if (yPos != std::string::npos && yPos < contentPos) {
+        y = std::stof(svg.substr(yPos + 3));
+    }
+    return {x, y};
+}
+
+/// Extract Y positions of major tick labels (text elements with a numeric label).
+/// Returns {y_position} for each tick label, excluding the title.
+static std::vector<float> extractSvgTickLabelY(const std::string& svg,
+                                                const std::string& titleText) {
+    std::vector<float> ys;
+    size_t pos = 0;
+    while (true) {
+        pos = svg.find("<text ", pos);
+        if (pos == std::string::npos) break;
+
+        // Skip the title element
+        size_t contentEnd = svg.find("</text>", pos);
+        if (contentEnd == std::string::npos) break;
+
+        std::string elementText = svg.substr(pos, contentEnd - pos);
+        if (elementText.find(titleText) != std::string::npos) {
+            pos = contentEnd + 7;
+            continue;
+        }
+
+        // Extract y attribute
+        size_t yPos = svg.find("y=\"", pos);
+        if (yPos != std::string::npos && yPos < contentEnd) {
+            ys.push_back(std::stof(svg.substr(yPos + 3)));
+        }
+        pos = contentEnd + 7;
+    }
+    return ys;
+}
+
+/// Extract X positions of major tick labels (for horizontal bars).
+static std::vector<float> extractSvgTickLabelX(const std::string& svg,
+                                                const std::string& titleText) {
+    std::vector<float> xs;
+    size_t pos = 0;
+    while (true) {
+        pos = svg.find("<text ", pos);
+        if (pos == std::string::npos) break;
+
+        size_t contentEnd = svg.find("</text>", pos);
+        if (contentEnd == std::string::npos) break;
+
+        std::string elementText = svg.substr(pos, contentEnd - pos);
+        if (elementText.find(titleText) != std::string::npos) {
+            pos = contentEnd + 7;
+            continue;
+        }
+
+        size_t xPos = svg.find("x=\"", pos);
+        if (xPos != std::string::npos && xPos < contentEnd) {
+            xs.push_back(std::stof(svg.substr(xPos + 3)));
+        }
+        pos = contentEnd + 7;
+    }
+    return xs;
+}
+
+/// Extract the colorbar gradient <rect> position {x, y, w, h} from an SVG string.
+static std::array<float, 4> extractSvgBarRect(const std::string& svg) {
+    // The gradient rect uses fill="url(#scibarGrad)"
+    size_t pos = svg.find("url(#scibarGrad)");
+    if (pos == std::string::npos) return {0.0f, 0.0f, 0.0f, 0.0f};
+
+    size_t rectStart = svg.rfind("<rect ", pos);
+    if (rectStart == std::string::npos || rectStart > pos) return {0.0f, 0.0f, 0.0f, 0.0f};
+
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    size_t xPos = svg.find("x=\"", rectStart);
+    if (xPos != std::string::npos && xPos < pos) x = std::stof(svg.substr(xPos + 3));
+    size_t yPos = svg.find("y=\"", rectStart);
+    if (yPos != std::string::npos && yPos < pos) y = std::stof(svg.substr(yPos + 3));
+    size_t wPos = svg.find("width=\"", rectStart);
+    if (wPos != std::string::npos && wPos < pos) w = std::stof(svg.substr(wPos + 7));
+    size_t hPos = svg.find("height=\"", rectStart);
+    if (hPos != std::string::npos && hPos < pos) h = std::stof(svg.substr(hPos + 8));
+    return {x, y, w, h};
+}
+
+/// Scan the raster canvas to find the Y position where the title text appears
+/// (first row from top with non-background pixels, within the center third).
+static int findTitleTopY(const scibar::Canvas& canvas, int bgThreshold = 250) {
+    int centerStart = canvas.width / 3;
+    int centerEnd   = centerStart * 2;
+    for (int y = 0; y < canvas.height / 3; ++y) {
+        for (int x = centerStart; x < centerEnd; ++x) {
+            uint32_t px = canvas.pixels[y * canvas.width + x];
+            uint8_t r = px & 0xFF, g = (px >> 8) & 0xFF, b = (px >> 16) & 0xFF;
+            if (r < bgThreshold || g < bgThreshold || b < bgThreshold)
+                return y;
+        }
+    }
+    return -1;
+}
+
+/// Find the leftmost non-background pixel in a row (finds the left edge of the colorbar).
+static int findBarLeftX(const scibar::Canvas& canvas, int rowY, int bgThreshold = 250) {
+    for (int x = 0; x < canvas.width; ++x) {
+        uint32_t px = canvas.pixels[rowY * canvas.width + x];
+        uint8_t r = px & 0xFF, g = (px >> 8) & 0xFF, b = (px >> 16) & 0xFF;
+        if (r < bgThreshold || g < bgThreshold || b < bgThreshold)
+            return x;
+    }
+    return -1;
+}
+
+/// Find the rightmost non-background pixel in a row (right edge of the colorbar).
+static int findBarRightX(const scibar::Canvas& canvas, int rowY, int bgThreshold = 250) {
+    for (int x = canvas.width - 1; x >= 0; --x) {
+        uint32_t px = canvas.pixels[rowY * canvas.width + x];
+        uint8_t r = px & 0xFF, g = (px >> 8) & 0xFF, b = (px >> 16) & 0xFF;
+        if (r < bgThreshold || g < bgThreshold || b < bgThreshold)
+            return x;
+    }
+    return -1;
 }
 
 TEST_CASE("Color fromHex", "[data]") {
@@ -1314,6 +1480,336 @@ TEST_CASE("exportToSVG reversed horizontal", "[svg][reverse]") {
     // Forward has x1="0" (gradient starts at left), reversed has x1="1" (starts at right)
     REQUIRE(fwdSvg.find("x1=\"0\"") != std::string::npos);
     REQUIRE(revSvg.find("x1=\"1\"") != std::string::npos);
+}
+
+// =========================================================================
+// Raster vs. Vector placement comparison tests
+// =========================================================================
+// These tests render the same spec via both the raster (canvas) and vector
+// (SVG) pathways, write both outputs to disk for visual inspection, and
+// compare key element positions between the two renderers.
+
+static const char* OUTPUT_DIR = "test_output";
+
+// Shared spec: linear 0–100, viridis, title "Temperature (°C)", light style
+static scibar::Spec makeComparisonSpec() {
+    scibar::Spec spec;
+    spec.scale    = scibar::Scale{scibar::ScaleType::Linear, 0.0f, 100.0f};
+    spec.title    = "Temperature (°C)";
+    spec.colormap = scibar::ColorMapView(testColormap());
+    return spec;
+}
+
+static scibar::Style makeComparisonStyle() {
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font.size = 14.0f;  // explicit for reproducibility
+    return style;
+}
+
+// Helper: ensure output directory exists (best-effort, no error on failure)
+static void ensureOutputDir() {
+    // Use cstdlib system — portable enough for test scaffolding
+    (void)system(("mkdir -p " + std::string(OUTPUT_DIR)).c_str());
+}
+
+// Helper: count dark (non-background) pixels in a rectangular region
+static int countDarkPixels(const scibar::Canvas& canvas, int x0, int y0,
+                           int x1, int y1, int threshold = 200) {
+    int count = 0;
+    for (int y = y0; y <= y1; ++y) {
+        for (int x = x0; x <= x1; ++x) {
+            uint32_t px = canvas.pixels[y * canvas.width + x];
+            uint8_t r = px & 0xFF, g = (px >> 8) & 0xFF, b = (px >> 16) & 0xFF;
+            if (r < threshold && g < threshold && b < threshold)
+                ++count;
+        }
+    }
+    return count;
+}
+
+// ── Test 1: High-level API, Vertical ─────────────────────────────────────
+
+TEST_CASE("raster-vs-vector: high-level vertical placement", "[raster-vs-vector][vertical][highlevel]") {
+    ensureOutputDir();
+
+    auto spec  = makeComparisonSpec();
+    auto style = makeComparisonStyle();
+
+    // ── Raster: drawLegend (shared layout) ──
+    const int W = 300, H = 600;
+    std::vector<uint32_t> rastBuf(static_cast<size_t>(W) * H, WHITE_PIXEL);
+    scibar::Canvas rastCanvas{rastBuf.data(), W, H};
+
+    scibar::LayoutResult layout = scibar::drawLegend(rastCanvas, spec, style,
+                                                      scibar::Orientation::Vertical);
+    scibar::writePPM(rastCanvas, (std::string(OUTPUT_DIR) + "/test01_highlevel_vertical.ppm").c_str());
+
+    INFO("Raster bar bounds:   x=" << layout.colorbarBoundingBox.x
+         << " y=" << layout.colorbarBoundingBox.y
+         << " w=" << layout.colorbarBoundingBox.width
+         << " h=" << layout.colorbarBoundingBox.height);
+
+    // ── SVG: exportLegendToSVG (shared layout, same as drawLegend) ──
+    std::string svgStr = scibar::exportLegendToSVG(spec, style, W, H,
+                                                    scibar::Orientation::Vertical);
+    {
+        std::ofstream out(std::string(OUTPUT_DIR) + "/test01_highlevel_vertical.svg");
+        out << svgStr;
+    }
+
+    // ── Compare positions ──
+    auto svgBar = extractSvgBarRect(svgStr);
+    INFO("SVG bar rect: x=" << svgBar[0] << " y=" << svgBar[1]
+         << " w=" << svgBar[2] << " h=" << svgBar[3]);
+
+    // Bar position should match (both use computeLegendLayout)
+    CHECK(std::abs(svgBar[0] - layout.colorbarBoundingBox.x) <= 1.0f);
+    CHECK(std::abs(svgBar[1] - layout.colorbarBoundingBox.y) <= 1.0f);
+    CHECK(std::abs(svgBar[2] - layout.colorbarBoundingBox.width)  <= 1.0f);
+    CHECK(std::abs(svgBar[3] - layout.colorbarBoundingBox.height) <= 1.0f);
+
+    // SVG title position — should now match the raster title position
+    // because exportLegendToSVG uses computeLegendLayout for title placement
+    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
+    INFO("SVG title: x=" << svgTitle[0] << " y=" << svgTitle[1]);
+
+    // Title X should be centered on canvas
+    CHECK(svgTitle[0] == Catch::Approx(static_cast<float>(W) / 2.0f).margin(1.0f));
+
+    // Title Y should be the same as raster (both use computeLegendLayout)
+    int rasterTitleY = findTitleTopY(rastCanvas);
+    INFO("Raster title first dark pixel Y: " << rasterTitleY);
+    INFO("SVG title Y: " << svgTitle[1]);
+    CHECK(rasterTitleY >= 0);
+    // The SVG title Y should be close to the raster title Y (within font height)
+    CHECK(std::abs(svgTitle[1] - static_cast<float>(rasterTitleY)) <= 20.0f);
+}
+
+// ── Test 2: High-level API, Horizontal ───────────────────────────────────
+// Uses drawLegend with Orientation::Horizontal and exportLegendToSVG,
+// both backed by computeLegendLayout for consistent placement.
+
+TEST_CASE("raster-vs-vector: high-level horizontal placement", "[raster-vs-vector][horizontal][highlevel]") {
+    ensureOutputDir();
+
+    auto spec  = makeComparisonSpec();
+    auto style = makeComparisonStyle();
+
+    const int W = 700, H = 180;
+
+    // ── Raster: drawLegend (shared layout, horizontal) ──
+    std::vector<uint32_t> rastBuf(static_cast<size_t>(W) * H, WHITE_PIXEL);
+    scibar::Canvas rastCanvas{rastBuf.data(), W, H};
+
+    scibar::LayoutResult layout = scibar::drawLegend(rastCanvas, spec, style,
+                                                      scibar::Orientation::Horizontal);
+    scibar::writePPM(rastCanvas, (std::string(OUTPUT_DIR) + "/test02_highlevel_horizontal.ppm").c_str());
+
+    INFO("Raster bar bounds:   x=" << layout.colorbarBoundingBox.x
+         << " y=" << layout.colorbarBoundingBox.y
+         << " w=" << layout.colorbarBoundingBox.width
+         << " h=" << layout.colorbarBoundingBox.height);
+
+    // ── SVG: exportLegendToSVG (shared layout) ──
+    std::string svgStr = scibar::exportLegendToSVG(spec, style, W, H,
+                                                    scibar::Orientation::Horizontal);
+    {
+        std::ofstream out(std::string(OUTPUT_DIR) + "/test02_highlevel_horizontal.svg");
+        out << svgStr;
+    }
+
+    // ── Compare ──
+    auto svgBar = extractSvgBarRect(svgStr);
+    INFO("SVG bar rect: x=" << svgBar[0] << " y=" << svgBar[1]
+         << " w=" << svgBar[2] << " h=" << svgBar[3]);
+
+    CHECK(std::abs(svgBar[0] - layout.colorbarBoundingBox.x) <= 1.0f);
+    CHECK(std::abs(svgBar[1] - layout.colorbarBoundingBox.y) <= 1.0f);
+    CHECK(std::abs(svgBar[2] - layout.colorbarBoundingBox.width)  <= 1.0f);
+    CHECK(std::abs(svgBar[3] - layout.colorbarBoundingBox.height) <= 1.0f);
+
+    // Title X should be centered on canvas
+    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
+    CHECK(svgTitle[0] == Catch::Approx(static_cast<float>(W) / 2.0f).margin(1.0f));
+
+    // Title Y should be close between raster and SVG (shared layout)
+    int rasterTitleY = findTitleTopY(rastCanvas);
+    INFO("Raster title Y: " << rasterTitleY << "  SVG title Y: " << svgTitle[1]);
+    CHECK(rasterTitleY >= 0);
+    CHECK(std::abs(svgTitle[1] - static_cast<float>(rasterTitleY)) <= 20.0f);
+}
+
+// ── Test 3: Low-level API, Vertical ──────────────────────────────────────
+
+TEST_CASE("raster-vs-vector: low-level vertical placement", "[raster-vs-vector][vertical][lowlevel]") {
+    ensureOutputDir();
+
+    auto spec  = makeComparisonSpec();
+    auto style = makeComparisonStyle();
+
+    const int W = 300, H = 600;
+    scibar::Rect barBounds{60, 80, 40, 440};  // same for both renderers
+
+    // ── Raster ──
+    std::vector<uint32_t> rastBuf(static_cast<size_t>(W) * H, WHITE_PIXEL);
+    scibar::Canvas rastCanvas{rastBuf.data(), W, H};
+
+    // Title above bar: centered on bar
+    scibar::Rect titleRect{barBounds.x, 10, barBounds.width, 40};
+    scibar::Rect actualTitle = scibar::drawTitle(rastCanvas, titleRect, spec.title, style);
+
+    scibar::Rect actualBar = scibar::drawColorBar(rastCanvas, barBounds, spec, style,
+                                                   scibar::Orientation::Vertical);
+    scibar::Rect tickBounds = scibar::drawTicks(rastCanvas, barBounds, spec, style,
+                                                 scibar::Orientation::Vertical);
+    scibar::drawSubTicks(rastCanvas, barBounds, spec, style,
+                          scibar::Orientation::Vertical);
+
+    scibar::writePPM(rastCanvas, (std::string(OUTPUT_DIR) + "/test03_lowlevel_vertical.ppm").c_str());
+
+    INFO("Raster bar bounds:   x=" << actualBar.x << " y=" << actualBar.y
+         << " w=" << actualBar.width << " h=" << actualBar.height);
+    INFO("Raster title bounds: x=" << actualTitle.x << " y=" << actualTitle.y
+         << " w=" << actualTitle.width << " h=" << actualTitle.height);
+    INFO("Raster tick bounds:  x=" << tickBounds.x << " y=" << tickBounds.y
+         << " w=" << tickBounds.width << " h=" << tickBounds.height);
+
+    // ── SVG: identical colorbarBounds ──
+    scibar::SVGOptions svgOpts;
+    svgOpts.totalWidth     = W;
+    svgOpts.totalHeight    = H;
+    svgOpts.colorbarBounds = barBounds;
+
+    std::string svgStr = scibar::exportToSVG(spec, style, svgOpts, scibar::Orientation::Vertical);
+    {
+        std::ofstream out(std::string(OUTPUT_DIR) + "/test03_lowlevel_vertical.svg");
+        out << svgStr;
+    }
+
+    // ── Compare ──
+    auto svgBar = extractSvgBarRect(svgStr);
+    INFO("SVG bar rect: x=" << svgBar[0] << " y=" << svgBar[1]
+         << " w=" << svgBar[2] << " h=" << svgBar[3]);
+
+    CHECK(std::abs(svgBar[0] - barBounds.x) <= 1.0f);
+    CHECK(std::abs(svgBar[1] - barBounds.y) <= 1.0f);
+    CHECK(std::abs(svgBar[2] - barBounds.width)  <= 1.0f);
+    CHECK(std::abs(svgBar[3] - barBounds.height) <= 1.0f);
+
+    // SVG title: (totalWidth/2, cb.y - 10) = (150, 70)
+    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
+    INFO("SVG title: x=" << svgTitle[0] << " y=" << svgTitle[1]);
+
+    // Raster title: drawn centered on titleRect (x=60, w=40, center=80)
+    float expectedRasterTitleX = static_cast<float>(titleRect.x) + static_cast<float>(titleRect.width) * 0.5f;
+    INFO("Expected raster title X (centered on titleRect): " << expectedRasterTitleX);
+    INFO("SVG title X: " << svgTitle[0] << " (expected: " << W/2.0f << ")");
+    INFO("Raster titleRect.y: " << titleRect.y << "  SVG title Y: " << svgTitle[1]);
+
+    // Tick label positions: compare SVG text Y positions (major ticks only)
+    auto svgTickLabelsY = extractSvgTickLabelY(svgStr, spec.title);
+    INFO("SVG tick label Y positions (major ticks): " << svgTickLabelsY.size());
+    for (size_t i = 0; i < svgTickLabelsY.size(); ++i) {
+        INFO("  tick label " << i << ": y=" << svgTickLabelsY[i]);
+    }
+    CHECK(svgTickLabelsY.size() >= 3);
+
+    // Verify tick label Y positions match generated tick values
+    auto generatedTicks = scibar::generateTicks(spec.scale, 5, style.tickPrecision);
+    float range = spec.scale.max - spec.scale.min;
+    INFO("Generated " << generatedTicks.size() << " major ticks");
+    for (size_t i = 0; i < generatedTicks.size() && i < svgTickLabelsY.size(); ++i) {
+        float fraction = (generatedTicks[i].value - spec.scale.min) / range;
+        float expectedY = static_cast<float>(barBounds.y + barBounds.height) -
+                          fraction * static_cast<float>(barBounds.height);
+        INFO("  tick " << generatedTicks[i].value << " → expectedY=" << expectedY
+             << " actualY=" << svgTickLabelsY[i]);
+        CHECK(svgTickLabelsY[i] == Catch::Approx(expectedY).margin(1.5f));
+    }
+}
+
+// ── Test 4: Low-level API, Horizontal ────────────────────────────────────
+
+TEST_CASE("raster-vs-vector: low-level horizontal placement", "[raster-vs-vector][horizontal][lowlevel]") {
+    ensureOutputDir();
+
+    auto spec  = makeComparisonSpec();
+    auto style = makeComparisonStyle();
+
+    const int W = 700, H = 180;
+    scibar::Rect barBounds{80, 70, 540, 30};
+
+    // ── Raster ──
+    std::vector<uint32_t> rastBuf(static_cast<size_t>(W) * H, WHITE_PIXEL);
+    scibar::Canvas rastCanvas{rastBuf.data(), W, H};
+
+    scibar::Rect titleRect{barBounds.x, 20, barBounds.width, 30};
+    scibar::Rect actualTitle = scibar::drawTitle(rastCanvas, titleRect, spec.title, style);
+
+    scibar::Rect actualBar = scibar::drawColorBar(rastCanvas, barBounds, spec, style,
+                                                   scibar::Orientation::Horizontal);
+    scibar::Rect tickBounds = scibar::drawTicks(rastCanvas, barBounds, spec, style,
+                                                 scibar::Orientation::Horizontal);
+    scibar::drawSubTicks(rastCanvas, barBounds, spec, style,
+                          scibar::Orientation::Horizontal);
+
+    scibar::writePPM(rastCanvas, (std::string(OUTPUT_DIR) + "/test04_lowlevel_horizontal.ppm").c_str());
+
+    INFO("Raster bar bounds:   x=" << actualBar.x << " y=" << actualBar.y
+         << " w=" << actualBar.width << " h=" << actualBar.height);
+    INFO("Raster title bounds: x=" << actualTitle.x << " y=" << actualTitle.y
+         << " w=" << actualTitle.width << " h=" << actualTitle.height);
+    INFO("Raster tick bounds:  x=" << tickBounds.x << " y=" << tickBounds.y
+         << " w=" << tickBounds.width << " h=" << tickBounds.height);
+
+    // ── SVG ──
+    scibar::SVGOptions svgOpts;
+    svgOpts.totalWidth     = W;
+    svgOpts.totalHeight    = H;
+    svgOpts.colorbarBounds = barBounds;
+
+    std::string svgStr = scibar::exportToSVG(spec, style, svgOpts,
+                                              scibar::Orientation::Horizontal);
+    {
+        std::ofstream out(std::string(OUTPUT_DIR) + "/test04_lowlevel_horizontal.svg");
+        out << svgStr;
+    }
+
+    // ── Compare ──
+    auto svgBar = extractSvgBarRect(svgStr);
+    CHECK(std::abs(svgBar[0] - barBounds.x) <= 1.0f);
+    CHECK(std::abs(svgBar[1] - barBounds.y) <= 1.0f);
+    CHECK(std::abs(svgBar[2] - barBounds.width)  <= 1.0f);
+    CHECK(std::abs(svgBar[3] - barBounds.height) <= 1.0f);
+
+    // Title position: SVG uses (totalWidth/2, cb.y - 15) = (350, 55)
+    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
+    float expectedSvgTitleX = static_cast<float>(W) / 2.0f;
+    float expectedSvgTitleY = static_cast<float>(barBounds.y) - 15.0f;
+    INFO("SVG title: x=" << svgTitle[0] << " y=" << svgTitle[1]
+         << " (expected x=" << expectedSvgTitleX << " y=" << expectedSvgTitleY << ")");
+    CHECK(svgTitle[0] == Catch::Approx(expectedSvgTitleX).margin(0.5f));
+    CHECK(svgTitle[1] == Catch::Approx(expectedSvgTitleY).margin(0.5f));
+
+    // Raster title was drawn centered on titleRect (x=80, w=540, center=350)
+    float expectedRasterTitleX = static_cast<float>(titleRect.x) +
+                                 static_cast<float>(titleRect.width) * 0.5f;
+    INFO("Expected raster title X (centered on titleRect): " << expectedRasterTitleX);
+    INFO("Raster titleRect.y: " << titleRect.y << "  SVG title Y: " << svgTitle[1]);
+
+    // Tick labels: compare SVG text X positions with generated tick values
+    auto svgTickLabelsX = extractSvgTickLabelX(svgStr, spec.title);
+    INFO("SVG tick label X positions (major ticks): " << svgTickLabelsX.size());
+    auto generatedTicks = scibar::generateTicks(spec.scale, 5, style.tickPrecision);
+    float range = spec.scale.max - spec.scale.min;
+    for (size_t i = 0; i < generatedTicks.size() && i < svgTickLabelsX.size(); ++i) {
+        float fraction = (generatedTicks[i].value - spec.scale.min) / range;
+        float expectedX = static_cast<float>(barBounds.x) +
+                          fraction * static_cast<float>(barBounds.width);
+        INFO("  tick " << generatedTicks[i].value << " → expectedX=" << expectedX
+             << " actualX=" << svgTickLabelsX[i]);
+        CHECK(svgTickLabelsX[i] == Catch::Approx(expectedX).margin(1.5f));
+    }
 }
 
 TEST_CASE("exportToSVG reversed categorical", "[svg][reverse]") {

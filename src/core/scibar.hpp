@@ -274,6 +274,20 @@ struct LayoutResult {
     int  generatedTickCount = 0; ///< Number of auto-generated major ticks
 };
 
+/// @brief Pre-computed layout for a colorbar legend, shared between raster
+/// and vector backends to guarantee consistent placement.
+///
+/// Call computeLegendLayout() to obtain a LegendLayout, then pass the
+/// resulting bounds to the low-level drawing functions or to
+/// exportLegendToSVG().
+struct LegendLayout {
+    Orientation orientation = Orientation::Vertical; ///< Layout direction
+    Rect titleBounds;       ///< Where the title should be drawn
+    Rect barBounds;         ///< Where the colorbar gradient should be drawn
+    int  canvasWidth  = 0;  ///< Total canvas width
+    int  canvasHeight = 0;  ///< Total canvas height
+};
+
 /// @brief Options for SVG export via exportToSVG().
 ///
 /// Allows embedding a raster image (e.g., a 3D mesh render) alongside the
@@ -422,20 +436,39 @@ Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Styl
 
 // --- High-level convenience ---
 
+/// @brief Compute a unified layout for a colorbar legend.
+///
+/// Returns pre-computed bounds for the title and the colorbar that are
+/// suitable for both raster (drawLegend) and vector (exportLegendToSVG)
+/// backends. Using this function ensures identical placement across
+/// output formats.
+///
+/// @param canvasWidth  Total canvas width in pixels.
+/// @param canvasHeight Total canvas height in pixels.
+/// @param spec         Data + colormap specification (title used for sizing).
+/// @param style        Visual style (font size determines text dimensions).
+/// @param orientation  Layout direction (Vertical or Horizontal).
+/// @return LegendLayout with titleBounds and barBounds.
+LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
+                                  const Spec& spec, const Style& style,
+                                  Orientation orientation = Orientation::Vertical);
+
 /// @brief Render a complete colorbar legend with sensible defaults.
 ///
 /// This is the high-level convenience function for rapid prototyping.
 /// It draws the bar, ticks, labels, and title into the canvas using
-/// hardcoded defaults (vertical orientation, ticks on the right).
+/// computeLegendLayout() for consistent placement.
 ///
 /// For publication-quality output with precise spatial control, use the
 /// low-level API (drawColorBar, drawTicks, drawTitle) separately.
 /// @param canvas Target pixel buffer.
 /// @param spec Data + colormap specification.
 /// @param style Visual style (defaults to light theme).
+/// @param orientation Layout direction (Vertical or Horizontal).
 /// @return LayoutResult with the actual bounding boxes used.
 LayoutResult drawLegend(Canvas& canvas, const Spec& spec,
-                        const Style& style = Style::defaultLight());
+                        const Style& style = Style::defaultLight(),
+                        Orientation orientation = Orientation::Vertical);
 
 // --- SVG export ---
 
@@ -457,6 +490,23 @@ std::string exportToSVG(const Spec& spec,
                         const Style& style = Style::defaultLight(),
                         const SVGOptions& options = {},
                         Orientation orientation = Orientation::Vertical);
+
+/// @brief Export a complete colorbar legend to SVG using automatic layout.
+///
+/// High-level SVG convenience that mirrors drawLegend(). Uses
+/// computeLegendLayout() internally so raster and vector output share
+/// identical placement.
+///
+/// @param spec         Data + colormap specification.
+/// @param style        Visual style (defaults to light theme).
+/// @param canvasWidth  SVG canvas width in pixels.
+/// @param canvasHeight SVG canvas height in pixels.
+/// @param orientation  Layout direction (Vertical or Horizontal).
+/// @return Complete SVG document as a string.
+std::string exportLegendToSVG(const Spec& spec,
+                               const Style& style = Style::defaultLight(),
+                               int canvasWidth = 300, int canvasHeight = 600,
+                               Orientation orientation = Orientation::Vertical);
 
 // --- Raster output ---
 
@@ -35530,33 +35580,73 @@ Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Styl
 }
 
 // =========================================================================
+// Shared layout computation
+// =========================================================================
+
+LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
+                                  const Spec& spec, const Style& style,
+                                  Orientation orientation) {
+    LegendLayout layout;
+    layout.canvasWidth  = canvasWidth;
+    layout.canvasHeight = canvasHeight;
+    layout.orientation  = orientation;
+
+    // Measure title for accurate sizing
+    float titleH = 0.0f;
+    if (!spec.title.empty()) {
+        FontMetrics fm = fontMetrics(style.font);
+        titleH = std::ceil(fm.lineHeight);
+    }
+
+    const int margin = std::min(canvasWidth, canvasHeight) / 12;
+
+    if (orientation == Orientation::Vertical) {
+        // Title: centered, at top of canvas
+        int titleY = margin;
+        layout.titleBounds = {0, titleY, canvasWidth, static_cast<int>(titleH)};
+
+        // Bar: centered horizontally, filling most of the height
+        int barWidth  = std::max(canvasWidth / 8, 30);
+        int barHeight = canvasHeight - titleY - static_cast<int>(titleH) - margin;
+        int barX = (canvasWidth - barWidth) / 2;
+        int barY = titleY + static_cast<int>(titleH) + margin / 2;
+        layout.barBounds = {barX, barY, barWidth, barHeight};
+    } else {
+        // Horizontal: title above, bar below, both centered
+        int titleY = margin;
+        layout.titleBounds = {0, titleY, canvasWidth, static_cast<int>(titleH)};
+
+        int barThick = std::max(canvasHeight / 8, 20);
+        int barLen   = canvasWidth - 2 * margin;
+        int barX = margin;
+        int barY = titleY + static_cast<int>(titleH) + margin / 2;
+        layout.barBounds = {barX, barY, barLen, barThick};
+    }
+
+    return layout;
+}
+
+// =========================================================================
 // High-level convenience: drawLegend
 // =========================================================================
 
-LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
+LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style,
+                        Orientation orientation) {
     assert(canvas.pixels && "Canvas pixels must not be null");
     assert(canvas.width > 0 && canvas.height > 0 && "Canvas must have positive dimensions");
     assert(spec.colormap.data && spec.colormap.size > 0 && "Colormap must not be empty");
 
-    // Hardcoded layout for a vertical colorbar filling the canvas
-    // with rough defaults. For publication figures, use the low-level API.
-
-    int marginX = canvas.width / 10;
-    int titleHeight = 40;
-    int barWidth = canvas.width / 6;
-    int barHeight = canvas.height - titleHeight - marginX;
-    int barX = (canvas.width - barWidth) / 2;
-    int barY = titleHeight;
+    LegendLayout layout = computeLegendLayout(canvas.width, canvas.height,
+                                               spec, style, orientation);
 
     LayoutResult result;
 
-    // Title — centered above the colorbar, using full canvas width to avoid clipping
-    Rect titleRect{0, 0, canvas.width, titleHeight};
-    Rect actualTitle = drawTitle(canvas, titleRect, spec.title, style);
+    // Title
+    Rect actualTitle = drawTitle(canvas, layout.titleBounds, spec.title, style);
 
     // Color bar
-    Rect barRect{barX, barY, barWidth, barHeight};
-    result.colorbarBoundingBox = drawColorBar(canvas, barRect, spec, style);
+    result.colorbarBoundingBox = drawColorBar(canvas, layout.barBounds, spec, style,
+                                               orientation);
 
     // Ticks
     auto generatedTicks = generateTicks(spec.scale, 5, style.tickPrecision);
@@ -35565,13 +35655,14 @@ LayoutResult drawLegend(Canvas& canvas, const Spec& spec, const Style& style) {
         specWithTicks.ticks = generatedTicks;
     }
     result.generatedTickCount = static_cast<int>(specWithTicks.ticks.size());
-    Rect tickBounds = drawTicks(canvas, barRect, specWithTicks, style);
+    Rect tickBounds = drawTicks(canvas, layout.barBounds, specWithTicks, style,
+                                 orientation);
 
     // Sub-ticks
-    drawSubTicks(canvas, barRect, specWithTicks, style);
+    drawSubTicks(canvas, layout.barBounds, specWithTicks, style, orientation);
 
     // Total bounds
-    result.totalBoundingBox = unionRect(unionRect(actualTitle, barRect), tickBounds);
+    result.totalBoundingBox = unionRect(unionRect(actualTitle, layout.barBounds), tickBounds);
     return result;
 }
 
@@ -35738,7 +35829,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.tickColor.g) << ","
                     << static_cast<int>(style.tickColor.b)
                     << ")\" stroke-width=\"1\" />\n";
-                float labelY = tickStartY + style.tickLength + style.font.size + 2.0f;
+                float labelY = tickStartY + style.tickLength + 3.0f;
                 svg << "  <text x=\"" << x << "\" y=\"" << labelY
                     << "\" font-family=\"Inter, sans-serif\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
@@ -35806,7 +35897,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
 
     // Title
     if (!spec.title.empty()) {
-        int titleX = options.totalWidth / 2;
+        int titleX = cb.x + cb.width / 2;
         int titleY = isVertical ? (cb.y - 10) : (cb.y - 15);
         svg << "  <text x=\"" << titleX << "\" y=\"" << titleY
             << "\" font-family=\"Inter, sans-serif\" font-size=\""
@@ -35821,6 +35912,56 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
 
     svg << "</svg>\n";
     return svg.str();
+}
+
+// =========================================================================
+// exportLegendToSVG — high-level SVG convenience
+// =========================================================================
+
+std::string exportLegendToSVG(const Spec& spec, const Style& style,
+                               int canvasWidth, int canvasHeight,
+                               Orientation orientation) {
+    LegendLayout layout = computeLegendLayout(canvasWidth, canvasHeight,
+                                               spec, style, orientation);
+
+    SVGOptions opts;
+    opts.totalWidth     = canvasWidth;
+    opts.totalHeight    = canvasHeight;
+    opts.colorbarBounds = layout.barBounds;
+
+    std::string svg = exportToSVG(spec, style, opts, orientation);
+
+    // Patch the SVG title position to use the layout-computed bounds
+    // instead of the hardcoded offset in exportToSVG.
+    if (!spec.title.empty()) {
+        FontMetrics fm = fontMetrics(style.font);
+        int correctTitleY = layout.titleBounds.y + static_cast<int>(std::ceil(fm.ascender));
+        // Title X: centered on the colorbar (matches raster drawTitle behavior
+        // when titleBounds is a full-width region above the bar)
+        int correctTitleX = layout.barBounds.x + layout.barBounds.width / 2;
+
+        // Find and replace title Y
+        std::string searchY;
+        if (orientation == Orientation::Vertical) {
+            searchY = "y=\"" + std::to_string(layout.barBounds.y - 10) + "\"";
+        } else {
+            searchY = "y=\"" + std::to_string(layout.barBounds.y - 15) + "\"";
+        }
+        std::string replaceY = "y=\"" + std::to_string(correctTitleY) + "\"";
+        size_t pos = svg.find(searchY);
+        if (pos != std::string::npos) {
+            svg.replace(pos, searchY.length(), replaceY);
+        }
+
+        // Find and replace title X (centered on bar, not on canvas)
+        std::string searchX = "x=\"" + std::to_string(correctTitleX) + "\"";
+        // Only replace if the current X differs from what we want
+        // (the X from exportToSVG is cb.x + cb.width/2 which equals correctTitleX)
+        // No action needed — already matches.
+        (void)searchX; // suppress unused warning
+    }
+
+    return svg;
 }
 
 // =========================================================================
