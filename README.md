@@ -58,7 +58,7 @@ Rather than forcing a full layout framework on you, we offer two API levels:
 
 ```c++
 #define SCIBAR_IMPLEMENTATION
-#include "../../src/core/scibar/scibar.hpp"
+#include "scibar/scibar.hpp"
 
 #include <vector>
 
