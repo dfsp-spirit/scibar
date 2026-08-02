@@ -400,6 +400,116 @@ TEST_CASE("generateTicks linear", "[ticks]") {
     }
 }
 
+TEST_CASE("generateTicks linear — all negative range", "[ticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min  = -4.0f;
+    scale.max  = -2.0f;
+
+    auto ticks = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(ticks.size() >= 3);
+
+    // Ticks should be within the data range: first tick >= min, last tick <= max
+    REQUIRE(ticks.front().value >= scale.min);
+    REQUIRE(ticks.back().value <= scale.max);
+
+    // All ticks should be negative (since the data range is entirely negative)
+    for (const auto& t : ticks) {
+        REQUIRE(t.value <= 0.0f);
+        REQUIRE_FALSE(t.label.empty());
+    }
+
+    // Tick values should be monotonically increasing
+    for (size_t i = 1; i < ticks.size(); ++i) {
+        REQUIRE(ticks[i].value > ticks[i - 1].value);
+    }
+}
+
+TEST_CASE("generateTicks linear — range crossing zero", "[ticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min  = -5.0f;
+    scale.max  = 7.0f;
+
+    auto ticks = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(ticks.size() >= 3);
+
+    // Ticks should be within the data range
+    REQUIRE(ticks.front().value >= scale.min);
+    REQUIRE(ticks.back().value <= scale.max);
+
+    // Should include at least one negative tick and one positive tick
+    bool hasNegative = false;
+    bool hasPositive = false;
+    for (const auto& t : ticks) {
+        if (t.value < 0.0f) hasNegative = true;
+        if (t.value > 0.0f) hasPositive = true;
+        REQUIRE_FALSE(t.label.empty());
+    }
+    REQUIRE(hasNegative);
+    REQUIRE(hasPositive);
+
+    // Tick values should be monotonically increasing
+    for (size_t i = 1; i < ticks.size(); ++i) {
+        REQUIRE(ticks[i].value > ticks[i - 1].value);
+    }
+}
+
+TEST_CASE("generateTicks linear — all positive range", "[ticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min  = 5.0f;
+    scale.max  = 11.0f;
+
+    auto ticks = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(ticks.size() >= 3);
+
+    // Ticks should be within the data range
+    REQUIRE(ticks.front().value >= scale.min);
+    REQUIRE(ticks.back().value <= scale.max);
+
+    // All ticks should be positive
+    for (const auto& t : ticks) {
+        REQUIRE(t.value >= 0.0f);
+        REQUIRE_FALSE(t.label.empty());
+    }
+
+    // Tick values should be monotonically increasing
+    for (size_t i = 1; i < ticks.size(); ++i) {
+        REQUIRE(ticks[i].value > ticks[i - 1].value);
+    }
+}
+
+TEST_CASE("generateTicks linear — wide asymmetric range (real-world)", "[ticks]") {
+    // Real-world case from the brain sulcal depth example:
+    // range [-9.37742, 11.8088] with viridis colormap.
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min  = -9.37742f;
+    scale.max  = 11.8088f;
+
+    auto ticks = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(ticks.size() >= 3);
+
+    // Ticks should be within the data range
+    REQUIRE(ticks.front().value >= scale.min);
+    REQUIRE(ticks.back().value <= scale.max);
+
+    // Must include negative ticks (the ceil-based start with improved
+    // niceStep must not skip negative territory)
+    bool hasNegative = false;
+    for (const auto& t : ticks) {
+        if (t.value < 0.0f) hasNegative = true;
+        REQUIRE_FALSE(t.label.empty());
+    }
+    REQUIRE(hasNegative);
+
+    // Tick values should be monotonically increasing
+    for (size_t i = 1; i < ticks.size(); ++i) {
+        REQUIRE(ticks[i].value > ticks[i - 1].value);
+    }
+}
+
 TEST_CASE("generateTicks logarithmic", "[ticks]") {
     scibar::Scale scale;
     scale.type = scibar::ScaleType::Logarithmic;
@@ -425,6 +535,207 @@ TEST_CASE("generateTicks logarithmic", "[ticks]") {
     REQUIRE(has10);
     REQUIRE(has100);
     REQUIRE(has1000);
+}
+
+// =========================================================================
+// Sub-tick tests
+// =========================================================================
+
+TEST_CASE("generateSubTicks linear — uniform spacing", "[subticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min  = 0.0f;
+    scale.max  = 100.0f;
+
+    auto majors = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(majors.size() >= 3);
+
+    auto subs = scibar::generateSubTicks(scale, majors, 4);
+    REQUIRE(subs.size() > 0);
+
+    // The sub-tick step should be uniform throughout.
+    float majorStep = std::abs(majors[1].value - majors[0].value);
+    float expectedSubStep = majorStep / static_cast<float>(5);  // subTicksPerInterval=4
+
+    // Every sub-tick must lie on a grid with spacing = expectedSubStep,
+    // anchored at the first sub-tick position. Consecutive gaps may be
+    // 2× expectedSubStep when a major tick falls on a grid line.
+    float gridBase = subs.front().value;
+    for (size_t i = 0; i < subs.size(); ++i) {
+        float offset = subs[i].value - gridBase;
+        float remainder = std::fmod(offset, expectedSubStep);
+        // remainder should be ~0 (on the grid)
+        REQUIRE(std::abs(remainder) < 0.01f);
+        REQUIRE(std::abs(remainder - expectedSubStep) > 0.01f);  // not one full step off
+    }
+
+    // No two consecutive gaps should exceed 2× subStep
+    for (size_t i = 1; i < subs.size(); ++i) {
+        float gap = subs[i].value - subs[i - 1].value;
+        REQUIRE(gap <= expectedSubStep * 2.0f + 0.01f);
+    }
+
+    // No sub-tick should coincide with a major tick
+    for (const auto& s : subs) {
+        for (const auto& m : majors) {
+            REQUIRE(std::abs(s.value - m.value) > expectedSubStep * 0.1f);
+        }
+    }
+}
+
+TEST_CASE("generateSubTicks linear — cross-zero range has uniform spacing", "[subticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Linear;
+    scale.min  = -9.37742f;
+    scale.max  = 11.8088f;
+
+    auto majors = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(majors.size() >= 3);
+
+    auto subs = scibar::generateSubTicks(scale, majors, 4);
+    REQUIRE(subs.size() > 0);
+
+    // Every sub-tick must lie on a uniform grid.
+    float majorStep = std::abs(majors[1].value - majors[0].value);
+    float subStep   = majorStep / 5.0f;
+
+    float gridBase = subs.front().value;
+    for (size_t i = 0; i < subs.size(); ++i) {
+        float offset = subs[i].value - gridBase;
+        float remainder = std::fmod(offset, subStep);
+        INFO("Sub-tick " << i << " value=" << subs[i].value
+             << " offset=" << offset << " remainder=" << remainder);
+        REQUIRE(std::abs(remainder) < 0.01f);
+    }
+
+    // Sub-ticks must cover leading and trailing gaps.
+    float firstMajor = majors.front().value;
+    float lastMajor  = majors.back().value;
+    if (firstMajor > lastMajor) std::swap(firstMajor, lastMajor);
+
+    bool hasSubBelowFirst = false;
+    for (const auto& s : subs) {
+        if (s.value < firstMajor) { hasSubBelowFirst = true; break; }
+    }
+    REQUIRE(hasSubBelowFirst);
+
+    bool hasSubAboveLast = false;
+    for (const auto& s : subs) {
+        if (s.value > lastMajor) { hasSubAboveLast = true; break; }
+    }
+    REQUIRE(hasSubAboveLast);
+
+    // No sub-tick should coincide with a major tick
+    for (const auto& s : subs) {
+        for (const auto& m : majors) {
+            REQUIRE(std::abs(s.value - m.value) > subStep * 0.1f);
+        }
+    }
+}
+
+TEST_CASE("generateSubTicks — all within range, linear", "[subticks]") {
+    // Verify every sub-tick is strictly within [scale.min, scale.max] for linear scales.
+    struct Case { float min; float max; const char* desc; };
+    for (auto [lo, hi, desc] : {
+            Case{0.0f, 100.0f, "positive"},
+            Case{-4.0f, -2.0f, "negative-only"},
+            Case{-9.38f, 11.81f, "cross-zero"},
+            Case{5.0f, 11.0f, "positive-offset"},
+            Case{-0.001f, 0.001f, "tiny-range"},
+        }) {
+        DYNAMIC_SECTION(desc) {
+            scibar::Scale scale;
+            scale.type = scibar::ScaleType::Linear;
+            scale.min  = lo;
+            scale.max  = hi;
+
+            auto majors = scibar::generateTicks(scale, 5, 2);
+            REQUIRE(majors.size() >= 2);
+
+            auto subs = scibar::generateSubTicks(scale, majors, 4);
+            for (const auto& s : subs) {
+                INFO("Sub-tick " << s.value << " outside [" << lo << ", " << hi << "]");
+                REQUIRE(s.value > lo);
+                REQUIRE(s.value < hi);
+            }
+        }
+    }
+}
+
+TEST_CASE("generateSubTicks — all within range, diverging", "[subticks]") {
+    scibar::Scale scale;
+    scale.type     = scibar::ScaleType::Diverging;
+    scale.min      = -3.0f;
+    scale.max      = 7.0f;
+    scale.midpoint = 2.0f;
+
+    auto majors = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(majors.size() >= 3);
+
+    auto subs = scibar::generateSubTicks(scale, majors, 3);
+    for (const auto& s : subs) {
+        INFO("Sub-tick " << s.value << " outside [" << scale.min << ", " << scale.max << "]");
+        REQUIRE(s.value > scale.min);
+        REQUIRE(s.value < scale.max);
+    }
+}
+
+TEST_CASE("generateSubTicks — all within range, logarithmic", "[subticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Logarithmic;
+    scale.min  = 1.0f;
+    scale.max  = 1000.0f;
+
+    auto majors = scibar::generateTicks(scale, 5, 3);
+    REQUIRE(majors.size() >= 2);
+
+    auto subs = scibar::generateSubTicks(scale, majors, 4);
+    // Log sub-ticks ignore subTicksPerInterval (they use 2–9 × decade).
+    // They should still all be within range.
+    for (const auto& s : subs) {
+        INFO("Sub-tick " << s.value << " outside [" << scale.min << ", " << scale.max << "]");
+        REQUIRE(s.value > scale.min);
+        REQUIRE(s.value < scale.max);
+    }
+}
+
+TEST_CASE("generateSubTicks — categorical returns empty", "[subticks]") {
+    scibar::Scale scale;
+    scale.type = scibar::ScaleType::Categorical;
+    scale.min  = 0.0f;
+    scale.max  = 5.0f;
+
+    // Give it some dummy major ticks
+    std::vector<scibar::Tick> majors = {{0.0f, "A"}, {5.0f, "E"}};
+    auto subs = scibar::generateSubTicks(scale, majors, 4);
+    REQUIRE(subs.empty());
+}
+
+TEST_CASE("generateSubTicks — linear inverted", "[subticks]") {
+    scibar::Scale scale;
+    scale.type     = scibar::ScaleType::Linear;
+    scale.min      = 0.0f;
+    scale.max      = 100.0f;
+    scale.inverted = true;
+
+    auto majors = scibar::generateTicks(scale, 5, 2);
+    REQUIRE(majors.size() >= 3);
+
+    // Inverted major ticks should be in descending order
+    REQUIRE(majors.front().value > majors.back().value);
+
+    auto subs = scibar::generateSubTicks(scale, majors, 4);
+
+    // All sub-ticks within range
+    for (const auto& s : subs) {
+        REQUIRE(s.value > scale.min);
+        REQUIRE(s.value < scale.max);
+    }
+
+    // Sub-ticks should be in descending order (matching inverted majors)
+    if (subs.size() >= 2) {
+        REQUIRE(subs.front().value > subs.back().value);
+    }
 }
 
 // Test colormap: returns a reference to a static viridis instance

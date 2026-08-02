@@ -35936,16 +35936,17 @@ std::vector<Tick> generateTicks(const Scale& scale, int targetCount, int precisi
     float niceFraction;
     if (fraction <= 1.0f)       niceFraction = 1.0f;
     else if (fraction <= 2.0f)  niceFraction = 2.0f;
-    else if (fraction <= 5.0f)  niceFraction = 5.0f;
+    else if (fraction <= 7.0f)  niceFraction = 5.0f;   // standard "nice numbers" threshold (Heckbert / matplotlib)
     else                        niceFraction = 10.0f;
 
     float niceStep = niceFraction * std::pow(10.0f, exponent);
 
     float start = std::ceil(scale.min / niceStep) * niceStep;
-    float end   = scale.max;
 
     char buf[64];
-    for (float value = start; value <= end + niceStep * 0.5f; value += niceStep) {
+    // Only include ticks within the data range — a tick outside
+    // [min, max] would map to a position beyond the colorbar bounds.
+    for (float value = start; value <= scale.max + niceStep * 1e-6f; value += niceStep) {
         Tick t;
         t.value = value;
         snprintf(buf, sizeof(buf), "%.*g", precision, static_cast<double>(value));
@@ -36020,18 +36021,27 @@ std::vector<SubTick> generateSubTicks(const Scale& scale,
             }
         }
     } else {
-        // Linear / Diverging: evenly-spaced sub-ticks between each pair of adjacent major ticks.
-        for (size_t i = 0; i + 1 < majorTicks.size(); ++i) {
-            float low  = majorTicks[i].value;
-            float high = majorTicks[i + 1].value;
-            if (low > high) std::swap(low, high);
+        // Linear / Diverging: uniform sub-tick grid across the entire data range.
+        // All sub-ticks share the same spacing derived from the major tick step —
+        // no compressed or stretched regions anywhere on the bar.
 
-            float interval = (high - low) / static_cast<float>(subTicksPerInterval + 1);
-            for (int k = 1; k <= subTicksPerInterval; ++k) {
-                float val = low + interval * static_cast<float>(k);
-                if (val > scale.min && val < scale.max) {
-                    subTicks.push_back({val});
+        float majorStep = std::abs(majorTicks[1].value - majorTicks[0].value);
+        float subStep   = majorStep / static_cast<float>(subTicksPerInterval + 1);
+
+        // First sub-tick: smallest multiple of subStep that is > scale.min.
+        float firstSub = std::ceil(scale.min / subStep) * subStep;
+
+        for (float val = firstSub; val < scale.max + subStep * 1e-6f; val += subStep) {
+            // Skip positions that coincide with a major tick
+            bool coincidesWithMajor = false;
+            for (const auto& mt : majorTicks) {
+                if (std::abs(val - mt.value) < subStep * 0.01f) {
+                    coincidesWithMajor = true;
+                    break;
                 }
+            }
+            if (!coincidesWithMajor && val > scale.min && val < scale.max) {
+                subTicks.push_back({val});
             }
         }
     }
