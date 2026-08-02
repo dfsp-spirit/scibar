@@ -20,17 +20,22 @@ endif()
 # scibar — Single-Header Scientific Colorbar Rendering for C++17
 # =========================================================================
 #
-# This CMake file defines an INTERFACE library target so consumers can
-# write:
+# This CMake file defines an INTERFACE library target.  Consumers can
+# use the library in three ways:
 #
-#   add_subdirectory(path/to/scibar)
-#   target_link_libraries(my_app PRIVATE scibar)
+#  1. add_subdirectory:
+#       add_subdirectory(path/to/scibar)
+#       target_link_libraries(my_app PRIVATE scibar::scibar)
 #
-# Or via FetchContent:
+#  2. FetchContent:
+#       include(FetchContent)
+#       FetchContent_Declare(scibar GIT_REPOSITORY https://github.com/dfsp-spirit/scibar ...)
+#       FetchContent_MakeAvailable(scibar)
+#       target_link_libraries(my_app PRIVATE scibar::scibar)
 #
-#   FetchContent_Declare(scibar GIT_REPOSITORY https://github.com/dfsp-spirit/scibar ...)
-#   FetchContent_MakeAvailable(scibar)
-#   target_link_libraries(my_app PRIVATE scibar)
+#  3. find_package (after cmake --install):
+#       find_package(scibar 0.1.0 REQUIRED)
+#       target_link_libraries(my_app PRIVATE scibar::scibar)
 #
 # The library is header-only.  Exactly one translation unit (usually
 # the consumer's main.cpp or a dedicated scibar_impl.cpp) must define
@@ -38,6 +43,7 @@ endif()
 # =========================================================================
 
 add_library(scibar INTERFACE)
+add_library(scibar::scibar ALIAS scibar)
 
 target_include_directories(scibar INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/core>
@@ -50,6 +56,54 @@ target_include_directories(scibar SYSTEM INTERFACE
 )
 
 target_compile_features(scibar INTERFACE cxx_std_17)
+
+# -----------------------------------------------------------------------
+# Install rules
+# -----------------------------------------------------------------------
+
+include(GNUInstallDirs)
+
+install(TARGETS scibar EXPORT scibarTargets)
+
+install(DIRECTORY src/core/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+)
+
+install(DIRECTORY src/third_party/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/scibar/third_party
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+)
+
+# -----------------------------------------------------------------------
+# CMake package config — enables find_package(scibar) after install
+# -----------------------------------------------------------------------
+
+include(CMakePackageConfigHelpers)
+
+install(EXPORT scibarTargets
+    FILE scibarTargets.cmake
+    NAMESPACE scibar::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/scibar
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/scibarConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/scibarConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/scibar
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/scibarConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/scibarConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/scibarConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/scibar
+)
 
 # -----------------------------------------------------------------------
 # Options
