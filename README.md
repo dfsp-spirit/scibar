@@ -69,7 +69,7 @@ int main() {
     const int W = 200, H = 500;
     std::vector<uint32_t> buf(W * H);
     Canvas canvas{buf.data(), W, H};
-    fillCanvas(canvas, Color{255, 255, 255, 255}); // your background color of choice
+    fillCanvas(canvas, Color{255, 255, 255, 255}); // your background RGBA color of choice
 
     // Create the spec: colormap, scale type, and the data range
     auto cmap = util::viridis();   // store locally — ColorMapView is non-owning.
@@ -82,7 +82,7 @@ int main() {
     Style style = Style::defaultLight();  // You could adapt style to your needs
     drawLegend(canvas, spec, style); // drawLegend is the high-level API for raster output
 
-    // Save as PPM (no external dependencies), or PGN.
+    // Save as PPM (no external dependencies), or PNG.
     writePPM(canvas, "colorbar.ppm");
 
     return 0;
