@@ -9,7 +9,8 @@
 /// (whole_brain_sulc.png, 938×416, 300k triangles) rendered with scimesh.
 /// Sulcal depth is mapped to vertex colors using the viridis colormap.
 ///
-/// Output: hybrid_brain.svg (standalone SVG, view in any browser)
+/// Output: hybrid_brain_referenced.svg (external image ref)
+///         hybrid_brain_embedded.svg   (self-contained, base64 inlined)
 
 #define SCIBAR_IMPLEMENTATION
 #include "../../src/core/scibar/scibar.hpp"
@@ -43,31 +44,46 @@ int main() {
     const int totalW   = barX + barW + margin;
     const int totalH   = imgY + imgH + margin + 40; // extra room for title below
 
-    // --- SVG options ---
+    // --- SVG options (shared layout, different image href) ---
     SVGOptions opts;
-    opts.totalWidth   = totalW;
-    opts.totalHeight  = totalH;
-    opts.mainImageHref   = "whole_brain_sulc.png";
+    opts.totalWidth    = totalW;
+    opts.totalHeight   = totalH;
     opts.mainImageBounds = {imgX, imgY, imgW, imgH};
     opts.colorbarBounds  = {barX, barY, barW, barH};
 
-    // --- Render ---
     Style style = Style::defaultLight();
-    std::string svg = exportToSVG(spec, style, opts, Orientation::Vertical);
 
-    // --- Write ---
-    std::ofstream out("hybrid_brain.svg");
-    if (!out) {
-        std::cerr << "ERROR: Could not write hybrid_brain.svg\n";
+    // --- 1. Referenced variant (external .png file) ---
+    opts.mainImageHref = "whole_brain_sulc.png";
+    std::string svgRef = exportToSVG(spec, style, opts, Orientation::Vertical);
+
+    std::ofstream outRef("hybrid_brain_referenced.svg");
+    if (!outRef) {
+        std::cerr << "ERROR: Could not write hybrid_brain_referenced.svg\n";
         return 1;
     }
-    out << svg;
-    out.close();
+    outRef << svgRef;
+    outRef.close();
+    std::cout << "Wrote hybrid_brain_referenced.svg (" << totalW << "×" << totalH
+              << " px, " << svgRef.size() << " bytes)\n";
 
-    std::cout << "Wrote hybrid_brain.svg (" << totalW << "×" << totalH
-              << " px, " << svg.size() << " bytes)\n";
-    std::cout << "Open with: firefox hybrid_brain.svg\n";
-    std::cout << "Or convert to PDF: rsvg-convert -f pdf -o hybrid_brain.pdf hybrid_brain.svg\n";
+    // --- 2. Embedded variant (base64 data URI, fully self-contained) ---
+    opts.mainImageHref = util::imageToDataURI("whole_brain_sulc.png");
+    if (opts.mainImageHref.empty()) {
+        std::cerr << "ERROR: Could not read whole_brain_sulc.png for embedding\n";
+        return 1;
+    }
+    std::string svgEmb = exportToSVG(spec, style, opts, Orientation::Vertical);
+
+    std::ofstream outEmb("hybrid_brain_embedded.svg");
+    if (!outEmb) {
+        std::cerr << "ERROR: Could not write hybrid_brain_embedded.svg\n";
+        return 1;
+    }
+    outEmb << svgEmb;
+    outEmb.close();
+    std::cout << "Wrote hybrid_brain_embedded.svg (" << totalW << "×" << totalH
+              << " px, " << svgEmb.size() << " bytes)\n";
 
     return 0;
 }

@@ -1682,6 +1682,36 @@ inline Color sampleColormap(const ColorMapView& cmap, float t) {
     };
 }
 
+/// @brief Read a binary image file and return its base64-encoded data URI.
+///
+/// Produces a `data:image/<type>;base64,...` string suitable for
+/// `SVGOptions::mainImageHref`. This lets you create fully self-contained
+/// SVG files with the raster image embedded inline — no external file
+/// references needed.
+///
+/// @par Example
+/// @code
+/// SVGOptions opts;
+/// opts.mainImageHref = util::imageToDataURI("rendered_brain.png");
+/// // Result: "data:image/png;base64,iVBORw0KGgo..."
+/// @endcode
+///
+/// MIME type is inferred from the file extension:
+/// - `.png`  → `image/png`
+/// - `.jpg` / `.jpeg` → `image/jpeg`
+/// - `.gif`  → `image/gif`
+/// - `.webp` → `image/webp`
+/// - `.svg`  → `image/svg+xml`
+/// - `.bmp`  → `image/bmp`
+/// - Everything else → `application/octet-stream`
+///
+/// @param filePath  Path to the image file on disk.
+/// @return A `data:` URI string, or an empty string if the file could not
+///         be read.
+///
+/// @see SVGOptions::mainImageHref, exportToSVG()
+std::string imageToDataURI(const std::string& filePath);
+
 } // namespace scibar::util
 
 
@@ -36870,6 +36900,70 @@ bool writePPM(const Canvas& canvas, const char* path) {
         out << int(c.r) << " " << int(c.g) << " " << int(c.b) << "\n";
     }
     return out.good();
+}
+
+// =========================================================================
+// util::imageToDataURI
+// =========================================================================
+
+static const char* mimeTypeFromPath(const std::string& path) {
+    auto dot = path.rfind('.');
+    if (dot == std::string::npos) return "application/octet-stream";
+
+    std::string ext = path.substr(dot);
+    // Lowercase the extension for case-insensitive matching
+    for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+
+    if (ext == ".png")  return "image/png";
+    if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
+    if (ext == ".gif")  return "image/gif";
+    if (ext == ".webp") return "image/webp";
+    if (ext == ".svg")  return "image/svg+xml";
+    if (ext == ".bmp")  return "image/bmp";
+    return "application/octet-stream";
+}
+
+static const char kBase64Table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+std::string util::imageToDataURI(const std::string& filePath) {
+    // Read entire file as binary
+    std::ifstream in(filePath, std::ios::binary | std::ios::ate);
+    if (!in) return "";
+
+    std::streamsize size = in.tellg();
+    if (size <= 0) return "";
+    in.seekg(0, std::ios::beg);
+
+    std::vector<unsigned char> buffer(static_cast<size_t>(size));
+    if (!in.read(reinterpret_cast<char*>(buffer.data()), size)) return "";
+
+    // Base64 encode
+    std::string encoded;
+    encoded.reserve(((static_cast<size_t>(size) + 2) / 3) * 4);
+
+    for (size_t i = 0; i < static_cast<size_t>(size); i += 3) {
+        unsigned char a = buffer[i];
+        unsigned char b = (i + 1 < static_cast<size_t>(size)) ? buffer[i + 1] : 0;
+        unsigned char c = (i + 2 < static_cast<size_t>(size)) ? buffer[i + 2] : 0;
+
+        encoded.push_back(kBase64Table[a >> 2]);
+        encoded.push_back(kBase64Table[((a & 0x03) << 4) | (b >> 4)]);
+
+        if (i + 1 < static_cast<size_t>(size)) {
+            encoded.push_back(kBase64Table[((b & 0x0F) << 2) | (c >> 6)]);
+        } else {
+            encoded.push_back('=');
+        }
+
+        if (i + 2 < static_cast<size_t>(size)) {
+            encoded.push_back(kBase64Table[c & 0x3F]);
+        } else {
+            encoded.push_back('=');
+        }
+    }
+
+    return "data:" + std::string(mimeTypeFromPath(filePath)) + ";base64," + encoded;
 }
 
 } // namespace scibar
