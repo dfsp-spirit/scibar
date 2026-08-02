@@ -34,7 +34,7 @@ int main() {
     {
         auto cmap = util::viridis();
         Spec spec;
-        spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+        spec.scale    = Scale{ScaleType::Linear, -1.0f, 109.0f};
         spec.title    = "Linear · viridis";
         spec.colormap = cmap;
         render("gallery_00.ppm", spec, Style::defaultLight());
@@ -44,7 +44,7 @@ int main() {
     {
         auto cmap = util::viridis();
         Spec spec;
-        spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+        spec.scale    = Scale{ScaleType::Linear, 0.0f, 90.0f};
         spec.title    = "Linear · reversed";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
@@ -78,7 +78,7 @@ int main() {
     {
         auto cmap = util::vik();
         Spec spec;
-        spec.scale    = Scale{ScaleType::Diverging, -5.0f, 5.0f, 0.0f};
+        spec.scale    = Scale{ScaleType::Diverging, -5.0f, 4.0f, 0.0f};
         spec.title    = "Diverging · vik";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
@@ -90,7 +90,7 @@ int main() {
     {
         auto cmap = util::vik();
         Spec spec;
-        spec.scale    = Scale{ScaleType::Diverging, -5.0f, 5.0f, 0.0f};
+        spec.scale    = Scale{ScaleType::Diverging, -5.0f, 4.0f, 0.0f};
         spec.title    = "Diverging · reversed";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
@@ -139,7 +139,7 @@ int main() {
     {
         auto cmap = util::viridis();
         Spec spec;
-        spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
+        spec.scale    = Scale{ScaleType::Linear, 0.0f, 101.0f};
         spec.title    = "Linear · dark theme";
         spec.colormap = cmap;
         render("gallery_08.ppm", spec, Style::defaultDark());

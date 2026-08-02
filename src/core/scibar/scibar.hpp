@@ -36117,6 +36117,42 @@ void fillCanvas(Canvas& canvas, Color color) {
 }
 
 // =========================================================================
+// Internal: compute gradient stop offset for diverging scales
+// =========================================================================
+
+/// Returns the gradient-stop offset (0…1) for colormap index @p i so that
+/// the neutral color aligns with the data midpoint for diverging scales.
+/// @p gradientFlipped must match the value used when setting up the linear
+/// gradient direction in drawColorBar / exportToSVG.
+/// For non-diverging scales, returns the uniform mapping i/(N-1).
+static inline float colormapGradientOffset(size_t i, size_t N, const Scale& scale,
+                                           bool gradientFlipped) {
+    if (N <= 1) return 0.5f;
+    if (scale.type != ScaleType::Diverging) {
+        return static_cast<float>(i) / static_cast<float>(N - 1);
+    }
+
+    // When the gradient is flipped, offset 0 corresponds to scale.max,
+    // so the midpoint fraction is measured from the max end.
+    float midFrac = gradientFlipped
+        ? (scale.max - scale.midpoint) / (scale.max - scale.min)
+        : (scale.midpoint - scale.min) / (scale.max - scale.min);
+    midFrac = std::max(0.0f, std::min(1.0f, midFrac));
+
+    size_t half = N / 2;
+    if (i < half) {
+        return (half > 1)
+            ? (static_cast<float>(i) / static_cast<float>(half - 1)) * midFrac
+            : 0.0f;
+    } else {
+        size_t upperCount = N - half;
+        return (upperCount > 1)
+            ? midFrac + (static_cast<float>(i - half) / static_cast<float>(upperCount - 1)) * (1.0f - midFrac)
+            : 1.0f;
+    }
+}
+
+// =========================================================================
 // Pixel drawing: drawColorBar
 // =========================================================================
 
@@ -36189,9 +36225,7 @@ Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& st
 
         for (size_t i = 0; i < spec.colormap.size; ++i) {
             const Color& c = spec.colormap.data[i];
-            float offset = (spec.colormap.size > 1)
-                ? static_cast<float>(i) / static_cast<float>(spec.colormap.size - 1)
-                : 0.5f;
+            float offset = colormapGradientOffset(i, spec.colormap.size, spec.scale, gradientFlipped);
 
             cv.add_color_stop(canvas_ity::fill_style, offset,
                               c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f);
@@ -36603,9 +36637,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         }
         for (size_t i = 0; i < spec.colormap.size; ++i) {
             const Color& c = spec.colormap.data[i];
-            float offset = (spec.colormap.size > 1)
-                ? static_cast<float>(i) / static_cast<float>(spec.colormap.size - 1)
-                : 0.5f;
+            float offset = colormapGradientOffset(i, spec.colormap.size, spec.scale, gradientFlipped);
             svg << "      <stop offset=\"" << offset
                 << "\" stop-color=\"rgb(" << static_cast<int>(c.r) << ","
                 << static_cast<int>(c.g) << "," << static_cast<int>(c.b)
