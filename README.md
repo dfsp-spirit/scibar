@@ -11,7 +11,9 @@ colorbars for the masses, in c++
 
 ## About
 
-scibar is a single-file, header only, C++17 library for plotting color bars to both vector and raster images, geared towards scientific visualization. It is also the natural fit for [scimesh](https://github.com/dfsp-spirit/scimesh).
+**scibar** is a lightweight, header-only C++17 library for rendering publication-ready colorbars to both vector and raster outputs. Built for scientific visualization, it provides rich support for diverse colorbar types alongside extensive customization over layouts, ticks, labels, and palettes—giving you full control over how your data scale is displayed.
+
+While **scibar** was designed as the companion colorbar engine for [scimesh](https://github.com/dfsp-spirit/scimesh), it is completely standalone and engine-agnostic, ready to integrate into any C++ visualization pipeline.
 
 
 ![scibar colorbar gallery horizontal](web/gallery.png)
@@ -31,6 +33,15 @@ scibar is a single-file, header only, C++17 library for plotting color bars to b
 - **Embedded font** — Inter Regular baked in, zero-config; drop in any `.ttf` for custom fonts
 - **Two API levels** — `drawLegend()` for rapid prototyping, low-level `drawColorBar`/`drawTicks`/`drawTitle` for full control
 - **Tick styling** — inward/outward ticks, sub-ticks on/off, configurable lengths
+
+
+## What scibar is not
+
+**scibar is not a layout engine.**
+
+Rather than forcing a full layout framework on you, our high-level API uses sensible defaults to handle internal element arrangement automatically, enabling single-call rendering for most use cases.
+
+Need total precision? The low-level API exposes raw spatial metrics so you retain complete control over placement and geometry.
 
 
 ## Documentation
@@ -67,7 +78,7 @@ int main() {
 
     // Render with the high-level API — handles title, colorbar, ticks, sub-ticks automatically
     Style style = Style::defaultLight();  // You could adapt style to your needs
-    drawLegend(canvas, spec, style);
+    drawLegend(canvas, spec, style); // drawLegend is the high-level API for raster output
 
     // Save as PPM (no external dependencies), or PGN.
     writePPM(canvas, "colorbar.ppm");
