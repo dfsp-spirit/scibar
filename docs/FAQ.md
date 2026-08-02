@@ -221,6 +221,8 @@ inkscape --export-filename=figure.pdf figure.svg
 cairosvg figure.svg -o figure.pdf
 ```
 
+We recommend `rsvg-convert` — it's tiny (no X11/GUI deps), fast, handles SVG gradients and embedded images properly, and is packaged for every distro.
+
 Under Debian-based distros like Ubuntu, something like this will get you all of them:
 
 ```shell
