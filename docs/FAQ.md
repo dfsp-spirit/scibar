@@ -205,3 +205,26 @@ No. scibar does not throw exceptions and does not use error codes.
 Invalid input triggers assertions in debug builds.  This is a deliberate
 design choice: scibar is a low-level building block, and the caller is
 expected to validate inputs.
+
+### The vector output format of scibar is SVG, put I need PDF!
+
+The conversion between these formats is easy and there are many established tools for this. E.g., under Linux, try one of these options:
+
+```shell
+# Option 1: librsvg (lightweight, no GUI, almost certainly already installed)
+rsvg-convert -f pdf -o figure.pdf figure.svg
+
+# Option 2: Inkscape (heavier but very reliable)
+inkscape --export-filename=figure.pdf figure.svg
+
+# Option 3: CairoSVG (Python)
+cairosvg figure.svg -o figure.pdf
+```
+
+Under Debian-based distros like Ubuntu, something like this will get you all of them:
+
+```shell
+sudo apt install librsvg2-bin inkscape cairosvg
+```
+
+Please note that we will not re-implement the general-purpose functionality of SVG to PDF conversion in scibar, as that is clearly out of scope.
