@@ -121,7 +121,7 @@ WARN_LOGFILE           =
 #---------------------------------------------------------------------------
 # Configuration options related to the input files
 #---------------------------------------------------------------------------
-INPUT                  = src/core/scibar.hpp \
+INPUT                  = src/core/scibar/scibar.hpp \
                          README.md \
                          docs/GETTING_STARTED.md \
                          docs/FAQ.md

@@ -25,7 +25,7 @@ specify.
 
 ## Quick Start — Single Header Drop-in
 
-Copy `src/core/scibar.hpp` into your project.  In **exactly one** `.cpp` file:
+Copy `src/core/scibar/scibar.hpp` into your project.  In **exactly one** `.cpp` file:
 
 ```cpp
 #define SCIBAR_IMPLEMENTATION

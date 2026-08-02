@@ -17,7 +17,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
-#include "../../src/core/scibar.hpp"
+#include "../../src/core/scibar/scibar.hpp"
 #include "../../src/third_party/stb_image_write.h"
 #include "toml.hpp"
 

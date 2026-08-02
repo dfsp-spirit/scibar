@@ -1,6 +1,6 @@
 #include "catch_amalgamated.hpp"
 #define SCIBAR_IMPLEMENTATION
-#include "scibar.hpp"
+#include "scibar/scibar.hpp"
 
 #include <cmath>
 #include <filesystem>

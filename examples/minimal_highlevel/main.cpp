@@ -2,7 +2,7 @@
 /// Uses the high-level drawLegend API for automatic layout.
 
 #define SCIBAR_IMPLEMENTATION
-#include "../../src/core/scibar.hpp"
+#include "../../src/core/scibar/scibar.hpp"
 
 #include <vector>
 

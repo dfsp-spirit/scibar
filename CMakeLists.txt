@@ -5,7 +5,7 @@ project(scibar VERSION 0.1.0 LANGUAGES CXX)
 # Verify that the version in scibar.hpp matches the CMake project version.
 # This prevents the two from drifting out of sync.
 # -----------------------------------------------------------------------
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/core/scibar.hpp" _scibar_ver_line
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/core/scibar/scibar.hpp" _scibar_ver_line
      REGEX "^#define SCIBAR_VERSION[^_]")
 string(REGEX REPLACE ".*\"([0-9]+\\.[0-9]+\\.[0-9]+)\".*" "\\1"
        _scibar_header_ver "${_scibar_ver_line}")

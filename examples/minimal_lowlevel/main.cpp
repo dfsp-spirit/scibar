@@ -2,7 +2,7 @@
 /// Uses the low-level API (drawColorBar, drawTicks, drawSubTicks, drawTitle).
 
 #define SCIBAR_IMPLEMENTATION
-#include "../../src/core/scibar.hpp"
+#include "../../src/core/scibar/scibar.hpp"
 
 #include <vector>
 

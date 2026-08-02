@@ -45,7 +45,7 @@ scibar is a single-file, header only, C++17 library for plotting color bars to b
 
 ```c++
 #define SCIBAR_IMPLEMENTATION
-#include "../../src/core/scibar.hpp"
+#include "../../src/core/scibar/scibar.hpp"
 
 #include <vector>
 

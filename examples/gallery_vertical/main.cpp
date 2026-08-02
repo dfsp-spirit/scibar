@@ -3,7 +3,7 @@
 /// grid by dev_tools/make_gallery_vertical.sh using ImageMagick montage.
 
 #define SCIBAR_IMPLEMENTATION
-#include "../../src/core/scibar.hpp"
+#include "../../src/core/scibar/scibar.hpp"
 
 #include <string>
 #include <vector>

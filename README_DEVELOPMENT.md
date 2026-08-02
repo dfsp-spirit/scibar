@@ -9,7 +9,7 @@
 
 ### Making a release
 
-* Bump version in `src/core/scibar.hpp` (see all four `#define` entries about version, like `#define SCIBAR_VERSION_MAJOR  1`)
+* Bump version in `src/core/scibar/scibar.hpp` (see all four `#define` entries about version, like `#define SCIBAR_VERSION_MAJOR  1`)
 * Bump version in `CMakeLists.txt`
 * log recent changes in CHANGES file
 * run the test (see above)
