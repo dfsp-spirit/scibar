@@ -44,8 +44,6 @@ Rather than forcing a full layout framework on you, we offer two API levels:
 - **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — single call, auto-layout, sensible defaults.
 - **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawTitle()` (raster) and `exportToSVG()` (vector) — full manual control over placement and geometry.
 
-See the [API Overview](@ref api_overview) for the complete function reference with decision flowchart.
-
 
 ## Documentation
 
