@@ -39,14 +39,18 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 
 **scibar is not a layout engine.**
 
-Rather than forcing a full layout framework on you, our high-level API uses sensible defaults to handle internal element arrangement automatically, enabling single-call rendering for most use cases.
+Rather than forcing a full layout framework on you, we offer two API levels:
 
-Need total precision? The low-level API exposes raw spatial metrics so you retain complete control over placement and geometry.
+- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — single call, auto-layout, sensible defaults.
+- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawTitle()` (raster) and `exportToSVG()` (vector) — full manual control over placement and geometry.
+
+See the [API Overview](@ref api_overview) for the complete function reference with decision flowchart.
 
 
 ## Documentation
 
 - [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
+- [API Overview](docs/API_OVERVIEW.md) — high-level vs low-level, raster vs vector function reference
 - [Getting Started Guide](docs/GETTING_STARTED.md) — quick start and core concepts
 - [FAQ](docs/FAQ.md) — common questions about colormap direction, ticks, layout, and more
 

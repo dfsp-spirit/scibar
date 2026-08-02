@@ -124,7 +124,8 @@ WARN_LOGFILE           =
 INPUT                  = src/core/scibar/scibar.hpp \
                          README.md \
                          docs/GETTING_STARTED.md \
-                         docs/FAQ.md
+                         docs/FAQ.md \
+                         docs/API_OVERVIEW.md
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.hpp \
                          *.md
