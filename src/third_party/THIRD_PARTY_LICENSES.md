@@ -1,7 +1,7 @@
 # Third-Party Licenses
 
 This file lists all third-party code and assets included in scibar.
-The library itself is licensed under the [MIT License](../../LICENSE).
+The scibar library itself is licensed under the [MIT License](../../LICENSE).
 
 ---
 
@@ -63,5 +63,5 @@ and are not separate files.
 
 - **Project:** [Scientific colour maps](https://www.fabiocrameri.ch/colourmaps/)
 - **Author:** Fabio Crameri
-- **License:** MIT (permissive, see [author's terms](https://www.fabiocrameri.ch/colourmaps/))
+- **License:** MIT (see also https://zenodo.org/records/8409685)
 - **Usage:** Default diverging colormap (256 entries)
