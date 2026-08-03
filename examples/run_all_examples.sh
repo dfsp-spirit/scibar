@@ -14,12 +14,21 @@ FAILURES=0
 FAILED_LIST=()
 
 echo "=============================================="
-echo " Building and running all scibar examples"
+if [ $# -ge 1 ]; then
+    echo " Building and running: $1"
+    DIRS=("$1")
+else
+    echo " Building and running all scibar examples"
+    DIRS=()
+    for d in */; do
+        d="${d%/}"
+        DIRS+=("$d")
+    done
+fi
 echo "=============================================="
 echo ""
 
-for dir in */; do
-    dir="${dir%/}"
+for dir in "${DIRS[@]}"; do
     [ "$dir" = "build" ] && continue
     [ ! -f "$dir/CMakeLists.txt" ] && continue
 
