@@ -66,7 +66,7 @@ int main() {
     using namespace scibar;
 
     // Create a canvas to draw on
-    const int W = 200, H = 500;
+    const int W = 200, H = 500;   // suggested: 200×500 for vertical, 500×200 for horizontal
     std::vector<uint32_t> buf(W * H);
     Canvas canvas{buf.data(), W, H};
     fillCanvas(canvas, Color{255, 255, 255, 255}); // your background RGBA color of choice

@@ -27,7 +27,7 @@
 ///
 ///   int main() {
 ///       using namespace scibar;
-///       const int W = 200, H = 500;
+///       const int W = 200, H = 500; // suggested: 200×500 for vertical, 500×200 for horizontal
 ///       std::vector<uint32_t> buf(W * H);
 ///       Canvas canvas{buf.data(), W, H};
 ///       fillCanvas(canvas, Color{255,255,255,255});
@@ -52,8 +52,9 @@
 /// - **Perceptually-uniform colormaps**: viridis, vik (256 entries each)
 /// - **Embedded font**: Inter (SIL Open Font License), zero-config
 ///
-/// For vendored dependency and embedded asset licenses, see
-/// `src/third_party/THIRD_PARTY_LICENSES.md`.
+/// Dependencies (vendored in `src/third_party/`):
+///   - `canvas_ity.hpp` (ISC license) — 2D rasterization
+///   - `stb_truetype.h` (Public Domain) — font metrics & glyph rasterization
 ///
 /// @see [API Reference](annotated.html), [Getting Started](md_docs_GETTING_STARTED.html)
 
