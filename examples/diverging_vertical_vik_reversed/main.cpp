@@ -32,7 +32,7 @@ int main() {
     spec.scale.min  = -5.0f;
     spec.scale.max  = 5.0f;
     spec.scale.midpoint = 0.0f;
-    spec.title      = "Anomaly (Vik, reversed)";
+    spec.label      = "Anomaly (Vik, reversed)";
     spec.colormap   = vikCmap;
 
     // --- Style ---

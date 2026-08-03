@@ -75,10 +75,10 @@ int main() {
     auto cmap = util::viridis();   // store locally — ColorMapView is non-owning.
     Spec spec;
     spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f}; // Linear, data from 0 to 100
-    spec.title    = "Temperature (°C)";
+    spec.label    = "Temperature (°C)";
     spec.colormap = cmap;
 
-    // Render with the high-level API — handles title, colorbar, ticks, sub-ticks automatically
+    // Render with the high-level API — handles label, colorbar, ticks, sub-ticks automatically
     Style style = Style::defaultLight();  // You could adapt style to your needs
     drawLegend(canvas, spec, style); // drawLegend is the high-level API for raster output
 

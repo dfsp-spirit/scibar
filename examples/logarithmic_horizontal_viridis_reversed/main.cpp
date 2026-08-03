@@ -31,7 +31,7 @@ int main() {
     spec.scale.type = scibar::ScaleType::Logarithmic;
     spec.scale.min  = 1.0f;
     spec.scale.max  = 1000.0f;
-    spec.title      = "Value (log, reversed)";
+    spec.label      = "Value (log, reversed)";
     spec.colormap   = viridisCmap;
 
     // --- Style ---
@@ -48,8 +48,8 @@ int main() {
     scibar::Rect barRect{barX, barY, barWidth, barHeight};
 
     // Title: centered above the bar
-    scibar::Rect titleRect{barX, barY - 35, barWidth, 30};
-    scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barX, barY - 35, barWidth, 30};
+    scibar::drawLabel(canvas, labelRect, spec.label, style);
 
     // Colorbar
     scibar::drawColorBar(canvas, barRect, spec, style, scibar::Orientation::Horizontal);

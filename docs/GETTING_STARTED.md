@@ -61,7 +61,7 @@ int main() {
     auto cmap = util::viridis();   // built-in 256-entry colormap
     Spec spec;
     spec.scale = Scale{ScaleType::Linear, 0.0f, 100.0f};
-    spec.title = "Temperature (°C)";
+    spec.label = "Temperature (°C)";
     spec.colormap = cmap;
 
     // 3. Render with sensible defaults
@@ -87,7 +87,7 @@ int main() {
     auto cmap = util::vik();   // diverging colormap
     Spec spec;
     spec.scale = Scale{ScaleType::Linear, -3.5f, 3.5f};
-    spec.title = "Z-Score";
+    spec.label = "Z-Score";
     spec.colormap = cmap;
 
     // Hybrid figure: embed a raster image alongside the vector colorbar
@@ -115,7 +115,7 @@ int main() {
 |--------|---------|
 | `Scale` | The data domain — min, max, scale type, and direction |
 | `ColorMapView` | Non-owning view of an RGBA colormap (vector or raw array) |
-| `Spec` | Complete specification: scale + colormap + ticks + title |
+| `Spec` | Complete specification: scale + colormap + ticks + label |
 | `Style` | Visual theme: colors, fonts, tick sizes, layout flags |
 | `Canvas` | Packed RGBA pixel buffer (for raster output) |
 | `Rect` | Axis-aligned integer rectangle for layout |
@@ -146,8 +146,39 @@ colorbar filling the entire canvas.  Good for rapid prototyping and debug
 overlays.
 
 **Low-level** — `drawColorBar()`, `drawTicks()`, `drawSubTicks()`,
-`drawTitle()` give you pixel-level control over every element.  Use these
-for publication-quality output.
+`drawLabel()` give you pixel-level control over every element.  Use these
+for publication-quality output and for placing colorbars on large canvases.
+
+### Choosing a Canvas Size
+
+The high-level `drawLegend()` and `exportLegendToSVG()` functions **fill the
+canvas proportionally** — the bar size is derived from the canvas dimensions,
+not the other way around. This keeps the high-level API simple: you provide
+a canvas, scibar fills it.
+
+For standalone colorbar output, these canvas sizes produce well-proportioned
+results with the default font (Inter, 14px):
+
+| Orientation | Label? | Recommended canvas | Notes |
+|---|---|---|---|
+| Vertical | No | 120 × 400 | Compact bar, no label |
+| Vertical | Yes | 150 × 450 | Extra width for the label |
+| Horizontal | No | 400 × 100 | Compact bar, no label |
+| Horizontal | Yes | 400 × 150 | Extra height for the label |
+
+If you need a small colorbar on a large canvas (e.g., for composite figures
+or custom layouts), use the **low-level API** instead:
+
+```cpp
+// Compute the layout once, then place it anywhere on a large canvas
+auto layout = computeLegendLayout(150, 450, spec, style);
+// Draw into a bigger canvas at a custom offset by adjusting bounds
+Rect shiftedBar = {layout.barBounds.x + offsetX, layout.barBounds.y + offsetY,
+                    layout.barBounds.width, layout.barBounds.height};
+drawColorBar(bigCanvas, shiftedBar, spec, style);
+```
+
+See `examples/custom_placement/` for a complete example.
 
 ### Font Handling
 

@@ -23,7 +23,7 @@ reverse = false
 [orientation]
 direction = "vertical"  # "vertical" or "horizontal"
 
-[title]
+[label]
 text = "Value"
 
 [layout]

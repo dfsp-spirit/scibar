@@ -35,7 +35,7 @@ int main() {
         auto cmap = util::viridis();
         Spec spec;
         spec.scale    = Scale{ScaleType::Linear, -1.0f, 109.0f};
-        spec.title    = "Linear · viridis";
+        spec.label    = "Linear · viridis";
         spec.colormap = cmap;
         render("gallery_00.ppm", spec, Style::defaultLight());
     }
@@ -45,7 +45,7 @@ int main() {
         auto cmap = util::viridis();
         Spec spec;
         spec.scale    = Scale{ScaleType::Linear, 0.0f, 90.0f};
-        spec.title    = "Linear · reversed";
+        spec.label    = "Linear · reversed";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
         style.reverseColors = true;
@@ -57,7 +57,7 @@ int main() {
         auto cmap = util::viridis();
         Spec spec;
         spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
-        spec.title    = "Linear · no sub-ticks";
+        spec.label    = "Linear · no sub-ticks";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
         style.showSubTicks = false;
@@ -69,7 +69,7 @@ int main() {
         auto cmap = util::viridis();
         Spec spec;
         spec.scale    = Scale{ScaleType::Logarithmic, 1.0f, 1000.0f};
-        spec.title    = "Log · viridis";
+        spec.label    = "Log · viridis";
         spec.colormap = cmap;
         render("gallery_03.ppm", spec, Style::defaultLight());
     }
@@ -79,7 +79,7 @@ int main() {
         auto cmap = util::vik();
         Spec spec;
         spec.scale    = Scale{ScaleType::Diverging, -5.0f, 4.0f, 0.0f};
-        spec.title    = "Diverging · vik";
+        spec.label    = "Diverging · vik";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
         style.ticksInward = true;
@@ -91,7 +91,7 @@ int main() {
         auto cmap = util::vik();
         Spec spec;
         spec.scale    = Scale{ScaleType::Diverging, -5.0f, 4.0f, 0.0f};
-        spec.title    = "Diverging · reversed";
+        spec.label    = "Diverging · reversed";
         spec.colormap = cmap;
         auto style = Style::defaultLight();
         style.reverseColors = true;
@@ -108,7 +108,7 @@ int main() {
         };
         Spec spec;
         spec.scale    = Scale{ScaleType::Categorical, 0.0f, 4.0f};
-        spec.title    = "Categorical · forward";
+        spec.label    = "Categorical · forward";
         spec.colormap = qual;
         spec.ticks    = {{0.5f, "A"}, {1.5f, "B"}, {2.5f, "C"}, {3.5f, "D"}};
         auto style = Style::defaultLight();
@@ -126,7 +126,7 @@ int main() {
         };
         Spec spec;
         spec.scale    = Scale{ScaleType::Categorical, 0.0f, 4.0f};
-        spec.title    = "Categorical · reversed";
+        spec.label    = "Categorical · reversed";
         spec.colormap = qual;
         spec.ticks    = {{0.5f, "A"}, {1.5f, "B"}, {2.5f, "C"}, {3.5f, "D"}};
         auto style = Style::defaultLight();
@@ -140,7 +140,7 @@ int main() {
         auto cmap = util::viridis();
         Spec spec;
         spec.scale    = Scale{ScaleType::Linear, 0.0f, 101.0f};
-        spec.title    = "Linear · dark theme";
+        spec.label    = "Linear · dark theme";
         spec.colormap = cmap;
         render("gallery_08.ppm", spec, Style::defaultDark());
     }

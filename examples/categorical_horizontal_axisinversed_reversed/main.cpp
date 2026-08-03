@@ -52,7 +52,7 @@ int main() {
     spec.scale.min  = 0.0f;
     spec.scale.max  = 5.0f;
     spec.scale.inverted = true;   // axis inverted: data runs E→A visually
-    spec.title      = "Category (inverted + reversed)";
+    spec.label      = "Category (inverted + reversed)";
     spec.colormap   = qualCmap;
 
     // Custom ticks: label each category at its center position
@@ -78,8 +78,8 @@ int main() {
     scibar::Rect barRect{barX, barY, barWidth, barHeight};
 
     // Title: centered above the bar
-    scibar::Rect titleRect{barX, barY - 35, barWidth, 30};
-    scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barX, barY - 35, barWidth, 30};
+    scibar::drawLabel(canvas, labelRect, spec.label, style);
 
     // Colorbar
     scibar::drawColorBar(canvas, barRect, spec, style, scibar::Orientation::Horizontal);

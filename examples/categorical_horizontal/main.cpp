@@ -37,7 +37,7 @@ int main() {
     spec.scale.type = scibar::ScaleType::Categorical;
     spec.scale.min  = 0.0f;
     spec.scale.max  = 5.0f;
-    spec.title      = "Category";
+    spec.label      = "Category";
     spec.colormap   = qualCmap;
 
     // Custom ticks: label each category at its center position
@@ -62,8 +62,8 @@ int main() {
     scibar::Rect barRect{barX, barY, barWidth, barHeight};
 
     // Title: centered above the bar
-    scibar::Rect titleRect{barX, barY - 35, barWidth, 30};
-    scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barX, barY - 35, barWidth, 30};
+    scibar::drawLabel(canvas, labelRect, spec.label, style);
 
     // Colorbar
     scibar::drawColorBar(canvas, barRect, spec, style, scibar::Orientation::Horizontal);

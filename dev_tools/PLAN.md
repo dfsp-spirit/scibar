@@ -202,7 +202,7 @@ namespace scibar {
 // outward from the bar edge). The caller can union these to compute total extent.
 Rect drawColorBar(Canvas& canvas, Rect bounds, const Spec& spec, const Style& style);
 Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& style);
-Rect drawTitle(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
+Rect drawLabel(Canvas& canvas, Rect bounds, const std::string& title, const Style& style);
 
 // Utility: measure text dimensions for manual layout calculations
 std::array<float, 2> measureText(const std::string& text, const Font& font);
@@ -265,7 +265,7 @@ scibar::Canvas canvas{my_buffer, 200, 600};
 scibar::Spec spec;
 spec.scale.min = 0.0f;
 spec.scale.max = 100.0f;
-spec.title = "Activation (μV)";
+spec.label = "Activation (μV)";
 spec.colormap = my_viridis_lut; // std::vector<scibar::Color>
 
 scibar::Style style = scibar::Style::defaultDark();
@@ -283,7 +283,7 @@ scibar::drawLegend(canvas, spec, style);
 scibar::Spec spec;
 spec.scale.min = -3.5f;
 spec.scale.max = 3.5f;
-spec.title = "Z-Score";
+spec.label = "Z-Score";
 spec.colormap = my_coolwarm_lut;
 
 scibar::SVGOptions opts;

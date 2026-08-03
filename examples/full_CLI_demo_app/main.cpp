@@ -57,7 +57,7 @@ struct AppConfig {
     std::string orientation = "vertical";
 
     // Title
-    std::string titleText = "Value";
+    std::string labelText = "Value";
 
     // Layout (0 = auto)
     int barThickness = 0;  // colorbar thickness in pixels
@@ -162,8 +162,8 @@ static AppConfig loadTOMLConfig(const std::string& path) {
         }
 
         // [title]
-        if (auto* tt = tbl["title"].as_table()) {
-            cfg.titleText = (*tt)["text"].value_or("Value");
+        if (auto* tt = tbl["label"].as_table()) {
+            cfg.labelText = (*tt)["text"].value_or("Value");
         }
 
         // [layout]
@@ -238,7 +238,7 @@ static void applyCLIArgs(int argc, char** argv, AppConfig& cfg, std::string& con
         } else if (arg == "--height") {
             cfg.canvasH = nextInt();
         } else if (arg == "--title") {
-            cfg.titleText = nextStr();
+            cfg.labelText = nextStr();
         } else if (arg == "--theme") {
             cfg.theme = nextStr();
         } else if (arg == "--font-size") {
@@ -348,7 +348,7 @@ static void buildSpec(const AppConfig& cfg, scibar::Spec& spec,
     spec.scale.midpoint = cfg.scaleMid;
     spec.scale.inverted = cfg.scaleInverted;
 
-    spec.title   = cfg.titleText;
+    spec.label   = cfg.labelText;
     if (!cfg.cmapFile.empty()) {
         cmapStorage  = loadColormapFromFile(cfg.cmapFile);
     } else {
@@ -447,8 +447,8 @@ static void renderPNG(const AppConfig& cfg, const scibar::Spec& spec,
     }
 
     // Title
-    scibar::Rect titleRect{bl.barX, bl.barY - titleH - 5, barRect.width, titleH};
-    scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{bl.barX, bl.barY - titleH - 5, barRect.width, titleH};
+    scibar::drawLabel(canvas, labelRect, spec.label, style);
 
     // Bar
     scibar::drawColorBar(canvas, barRect, spec, style, ori);

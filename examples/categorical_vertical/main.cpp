@@ -38,7 +38,7 @@ int main() {
     spec.scale.type = scibar::ScaleType::Categorical;
     spec.scale.min  = 0.0f;
     spec.scale.max  = 5.0f;
-    spec.title      = "Category";
+    spec.label      = "Category";
     spec.colormap   = qualCmap;
 
     // Custom ticks: label each category at its center position

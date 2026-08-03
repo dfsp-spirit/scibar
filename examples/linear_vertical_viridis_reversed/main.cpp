@@ -32,7 +32,7 @@ int main() {
     spec.scale.type = scibar::ScaleType::Linear;
     spec.scale.min  = 2.0f;
     spec.scale.max  = 5.0f;
-    spec.title      = "Random Value (reversed)";
+    spec.label      = "Random Value (reversed)";
     spec.colormap   = viridisCmap;
 
     // --- Style ---

@@ -1,5 +1,5 @@
 /// scibar minimal low-level example — horizontal colorbar to PPM (no external deps).
-/// Uses the low-level API (drawColorBar, drawTicks, drawSubTicks, drawTitle).
+/// Uses the low-level API (drawColorBar, drawTicks, drawSubTicks, drawLabel).
 
 #define SCIBAR_IMPLEMENTATION
 #include "../../src/core/scibar/scibar.hpp"
@@ -19,7 +19,7 @@ int main() {
     auto cmap = util::viridis();   // store locally — ColorMapView is non-owning
     Spec spec;
     spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
-    spec.title    = "Temperature (°C)";
+    spec.label    = "Temperature (°C)";
     spec.colormap = cmap;
 
     // Render
@@ -30,8 +30,8 @@ int main() {
     drawSubTicks(canvas, barRect, spec, style, Orientation::Horizontal);
 
     // Title centered above the bar
-    Rect titleRect{barRect.x, 5, barRect.width, 35};
-    drawTitle(canvas, titleRect, spec.title, style);
+    Rect labelRect{barRect.x, 5, barRect.width, 35};
+    drawLabel(canvas, labelRect, spec.label, style);
 
     // Save as PPM (no external dependencies)
     writePPM(canvas, "colorbar.ppm");

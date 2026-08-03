@@ -69,7 +69,7 @@ spec.ticks = {
 ### Q: Why don't my elements fit? The ticks go off-screen!
 
 scibar is **not a layout engine**. We provide sane defaults for the high-level API,
-but if they do not work for you, e.g., because you need a very long title text, you may have
+but if they do not work for you, e.g., because you need a very long label text, you may have
 to use the low level API instead, where you can customize positions to your needs.
 
 With the low-level API, each draw function renders exactly
@@ -101,12 +101,12 @@ complete horizontal colorbar programs.
 ### Q: What does `drawLegend()` do differently from the low-level API?
 
 `drawLegend()` applies hardcoded defaults for a vertical colorbar
-filling the entire canvas, with ticks on the right and the title
+filling the entire canvas, with ticks on the right and the label
 centered above.  It performs **no** constraint solving, collision
 detection, or multi-pass refinement.
 
 Use `drawLegend()` for rapid prototyping and debug overlays.
-Use the low-level API (`drawColorBar`, `drawTicks`, `drawTitle`) for
+Use the low-level API (`drawColorBar`, `drawTicks`, `drawLabel`) for
 anything that will appear in a publication.
 
 ## Colormaps
@@ -158,7 +158,7 @@ Yes.  Use `measureText()` for pixel dimensions and `fontMetrics()` for
 vertical metrics:
 
 ```cpp
-auto [w, h] = scibar::measureText("My Title", font);
+auto [w, h] = scibar::measureText("My Label", font);
 FontMetrics fm = scibar::fontMetrics(font);
 // fm.ascender, fm.descender, fm.lineHeight are all in pixels
 ```

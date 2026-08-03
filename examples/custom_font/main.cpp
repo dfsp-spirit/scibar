@@ -35,7 +35,7 @@ int main() {
     spec.scale.type = scibar::ScaleType::Linear;
     spec.scale.min  = 0.0f;
     spec.scale.max  = 100.0f;
-    spec.title      = "Intensity (a.u.)";
+    spec.label      = "Intensity (a.u.)";
     spec.colormap   = viridisLut;
 
     scibar::Style style = scibar::Style::defaultLight();
@@ -52,8 +52,8 @@ int main() {
     scibar::Rect barRect{barX, barY, barWidth, barHeight};
 
     // Title: centered above the bar
-    scibar::Rect titleRect{barX, barY - 60, barWidth, 50};
-    scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barX, barY - 60, barWidth, 50};
+    scibar::drawLabel(canvas, labelRect, spec.label, style);
 
     // Colorbar
     scibar::drawColorBar(canvas, barRect, spec, style, scibar::Orientation::Vertical);

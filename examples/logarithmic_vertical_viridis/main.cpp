@@ -31,7 +31,7 @@ int main() {
     spec.scale.type = scibar::ScaleType::Logarithmic;
     spec.scale.min  = 1.0f;
     spec.scale.max  = 1000.0f;
-    spec.title      = "Value (log)";
+    spec.label      = "Value (log)";
     spec.colormap   = viridisCmap;
 
     // --- Style ---

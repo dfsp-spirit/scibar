@@ -27,7 +27,7 @@ int main() {
     auto cmap = util::viridis();   // store locally — ColorMapView is non-owning
     Spec spec;
     spec.scale    = Scale{ScaleType::Linear, -9.37742f, 11.8088f};
-    spec.title    = "Sulcal Depth (mm)";
+    spec.label    = "Sulcal Depth (mm)";
     spec.colormap = cmap;
 
     // --- Layout ---

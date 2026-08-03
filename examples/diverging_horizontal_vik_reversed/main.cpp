@@ -32,7 +32,7 @@ int main() {
     spec.scale.min  = -5.0f;
     spec.scale.max  = 5.0f;
     spec.scale.midpoint = 0.0f;
-    spec.title      = "Anomaly (Vik, reversed)";
+    spec.label      = "Anomaly (Vik, reversed)";
     spec.colormap   = vikCmap;
 
     // --- Style ---
@@ -49,8 +49,8 @@ int main() {
     scibar::Rect barRect{barX, barY, barWidth, barHeight};
 
     // Title
-    scibar::Rect titleRect{barX, barY - 35, barWidth, 30};
-    scibar::drawTitle(canvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barX, barY - 35, barWidth, 30};
+    scibar::drawLabel(canvas, labelRect, spec.label, style);
 
     // Colorbar
     scibar::drawColorBar(canvas, barRect, spec, style, scibar::Orientation::Horizontal);

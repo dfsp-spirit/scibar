@@ -112,10 +112,10 @@ static std::vector<std::array<float, 2>> extractSvgTextPositions(const std::stri
 }
 
 /// Extract the title <text> element position {x, y} from an SVG string.
-/// Searches for a <text> element containing the exact title content string.
-static std::array<float, 2> extractSvgTitlePosition(const std::string& svg,
+/// Searches for a <text> element containing the exact label content string.
+static std::array<float, 2> extractSvgLabelPosition(const std::string& svg,
                                                       const std::string& titleText) {
-    // Find the title text content in the SVG
+    // Find the label text content in the SVG
     size_t contentPos = svg.find(">" + titleText + "<");
     if (contentPos == std::string::npos) return {0.0f, 0.0f};
 
@@ -136,7 +136,7 @@ static std::array<float, 2> extractSvgTitlePosition(const std::string& svg,
 }
 
 /// Extract Y positions of major tick labels (text elements with a numeric label).
-/// Returns {y_position} for each tick label, excluding the title.
+/// Returns {y_position} for each tick label, excluding the label.
 static std::vector<float> extractSvgTickLabelY(const std::string& svg,
                                                 const std::string& titleText) {
     std::vector<float> ys;
@@ -145,7 +145,7 @@ static std::vector<float> extractSvgTickLabelY(const std::string& svg,
         pos = svg.find("<text ", pos);
         if (pos == std::string::npos) break;
 
-        // Skip the title element
+        // Skip the label element
         size_t contentEnd = svg.find("</text>", pos);
         if (contentEnd == std::string::npos) break;
 
@@ -213,7 +213,7 @@ static std::array<float, 4> extractSvgBarRect(const std::string& svg) {
     return {x, y, w, h};
 }
 
-/// Scan the raster canvas to find the Y position where the title text appears
+/// Scan the raster canvas to find the Y position where the label text appears
 /// (first row from top with non-background pixels, within the center third).
 static int findTitleTopY(const scibar::Canvas& canvas, int bgThreshold = 250) {
     int centerStart = canvas.width / 3;
@@ -783,7 +783,7 @@ TEST_CASE("drawColorBar basic", "[draw]") {
     REQUIRE(hasColor);
 }
 
-TEST_CASE("drawTitle basic", "[draw]") {
+TEST_CASE("drawLabel basic", "[draw]") {
     auto cmap = testColormap();
     scibar::Font font;  // uses embedded Inter font
 
@@ -793,13 +793,13 @@ TEST_CASE("drawTitle basic", "[draw]") {
 
     scibar::Spec spec;
     spec.colormap = scibar::ColorMapView(cmap);
-    spec.title = "Test Title";
+    spec.label = "Test Label";
 
     scibar::Style style = scibar::Style::defaultLight();
     style.font = font;
 
     scibar::Rect bounds{0, 0, W, H};
-    scibar::Rect result = scibar::drawTitle(cv, bounds, spec.title, style);
+    scibar::Rect result = scibar::drawLabel(cv, bounds, spec.label, style);
 
     REQUIRE(result.width > 0);
     REQUIRE(result.height > 0);
@@ -840,7 +840,7 @@ TEST_CASE("drawLegend basic", "[draw]") {
     scibar::Spec spec;
     spec.scale.min = 0.0f;
     spec.scale.max = 100.0f;
-    spec.title = "Value";
+    spec.label = "Value";
     spec.colormap = scibar::ColorMapView(cmap);
 
     scibar::Style style = scibar::Style::defaultDark();
@@ -1601,7 +1601,7 @@ TEST_CASE("exportToSVG basic", "[svg]") {
     scibar::Spec spec;
     spec.scale.min = 0.0f;
     spec.scale.max = 100.0f;
-    spec.title = "Value";
+    spec.label = "Value";
     spec.colormap = scibar::ColorMapView(cmap);
 
     scibar::SVGOptions opts;
@@ -1744,7 +1744,7 @@ TEST_CASE("exportToSVG reversed continuous", "[svg][reverse]") {
     scibar::Spec spec;
     spec.scale.min = 0.0f;
     spec.scale.max = 100.0f;
-    spec.title = "Value";
+    spec.label = "Value";
     spec.colormap = scibar::ColorMapView(cmap);
 
     scibar::SVGOptions opts;
@@ -1802,11 +1802,11 @@ TEST_CASE("exportToSVG reversed horizontal", "[svg][reverse]") {
 
 static const char* OUTPUT_DIR = "test_output";
 
-// Shared spec: linear 0–100, viridis, title "Temperature (°C)", light style
+// Shared spec: linear 0–100, viridis, label "Temperature (°C)", light style
 static scibar::Spec makeComparisonSpec() {
     scibar::Spec spec;
     spec.scale    = scibar::Scale{scibar::ScaleType::Linear, 0.0f, 100.0f};
-    spec.title    = "Temperature (°C)";
+    spec.label    = "Temperature (°C)";
     spec.colormap = scibar::ColorMapView(testColormap());
     return spec;
 }
@@ -1879,21 +1879,21 @@ TEST_CASE("raster-vs-vector: high-level vertical placement", "[raster-vs-vector]
     CHECK(std::abs(svgBar[2] - layout.colorbarBoundingBox.width)  <= 1.0f);
     CHECK(std::abs(svgBar[3] - layout.colorbarBoundingBox.height) <= 1.0f);
 
-    // SVG title position — should now match the raster title position
-    // because exportLegendToSVG uses computeLegendLayout for title placement
-    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
-    INFO("SVG title: x=" << svgTitle[0] << " y=" << svgTitle[1]);
+    // SVG label position — should now match the raster label position
+    // because exportLegendToSVG uses computeLegendLayout for label placement
+    auto svgLabel = extractSvgLabelPosition(svgStr, spec.label);
+    INFO("SVG label: x=" << svgLabel[0] << " y=" << svgLabel[1]);
 
     // Title X should be centered on canvas
-    CHECK(svgTitle[0] == Catch::Approx(static_cast<float>(W) / 2.0f).margin(1.0f));
+    CHECK(svgLabel[0] == Catch::Approx(static_cast<float>(W) / 2.0f).margin(1.0f));
 
     // Title Y should be the same as raster (both use computeLegendLayout)
-    int rasterTitleY = findTitleTopY(rastCanvas);
-    INFO("Raster title first dark pixel Y: " << rasterTitleY);
-    INFO("SVG title Y: " << svgTitle[1]);
-    CHECK(rasterTitleY >= 0);
-    // The SVG title Y should be close to the raster title Y (within font height)
-    CHECK(std::abs(svgTitle[1] - static_cast<float>(rasterTitleY)) <= 20.0f);
+    int rasterLabelY = findTitleTopY(rastCanvas);
+    INFO("Raster label first dark pixel Y: " << rasterLabelY);
+    INFO("SVG label Y: " << svgLabel[1]);
+    CHECK(rasterLabelY >= 0);
+    // The SVG label Y should be close to the raster label Y (within font height)
+    CHECK(std::abs(svgLabel[1] - static_cast<float>(rasterLabelY)) <= 20.0f);
 }
 
 // ── Test 2: High-level API, Horizontal ───────────────────────────────────
@@ -1940,14 +1940,14 @@ TEST_CASE("raster-vs-vector: high-level horizontal placement", "[raster-vs-vecto
     CHECK(std::abs(svgBar[3] - layout.colorbarBoundingBox.height) <= 1.0f);
 
     // Title X should be centered on canvas
-    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
-    CHECK(svgTitle[0] == Catch::Approx(static_cast<float>(W) / 2.0f).margin(1.0f));
+    auto svgLabel = extractSvgLabelPosition(svgStr, spec.label);
+    CHECK(svgLabel[0] == Catch::Approx(static_cast<float>(W) / 2.0f).margin(1.0f));
 
     // Title Y should be close between raster and SVG (shared layout)
-    int rasterTitleY = findTitleTopY(rastCanvas);
-    INFO("Raster title Y: " << rasterTitleY << "  SVG title Y: " << svgTitle[1]);
-    CHECK(rasterTitleY >= 0);
-    CHECK(std::abs(svgTitle[1] - static_cast<float>(rasterTitleY)) <= 20.0f);
+    int rasterLabelY = findTitleTopY(rastCanvas);
+    INFO("Raster label Y: " << rasterLabelY << "  SVG label Y: " << svgLabel[1]);
+    CHECK(rasterLabelY >= 0);
+    CHECK(std::abs(svgLabel[1] - static_cast<float>(rasterLabelY)) <= 20.0f);
 }
 
 // ── Test 3: Low-level API, Vertical ──────────────────────────────────────
@@ -1966,8 +1966,8 @@ TEST_CASE("raster-vs-vector: low-level vertical placement", "[raster-vs-vector][
     scibar::Canvas rastCanvas{rastBuf.data(), W, H};
 
     // Title above bar: centered on bar
-    scibar::Rect titleRect{barBounds.x, 10, barBounds.width, 40};
-    scibar::Rect actualTitle = scibar::drawTitle(rastCanvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barBounds.x, 10, barBounds.width, 40};
+    scibar::Rect actualTitle = scibar::drawLabel(rastCanvas, labelRect, spec.label, style);
 
     scibar::Rect actualBar = scibar::drawColorBar(rastCanvas, barBounds, spec, style,
                                                    scibar::Orientation::Vertical);
@@ -1980,7 +1980,7 @@ TEST_CASE("raster-vs-vector: low-level vertical placement", "[raster-vs-vector][
 
     INFO("Raster bar bounds:   x=" << actualBar.x << " y=" << actualBar.y
          << " w=" << actualBar.width << " h=" << actualBar.height);
-    INFO("Raster title bounds: x=" << actualTitle.x << " y=" << actualTitle.y
+    INFO("Raster label bounds: x=" << actualTitle.x << " y=" << actualTitle.y
          << " w=" << actualTitle.width << " h=" << actualTitle.height);
     INFO("Raster tick bounds:  x=" << tickBounds.x << " y=" << tickBounds.y
          << " w=" << tickBounds.width << " h=" << tickBounds.height);
@@ -2007,18 +2007,18 @@ TEST_CASE("raster-vs-vector: low-level vertical placement", "[raster-vs-vector][
     CHECK(std::abs(svgBar[2] - barBounds.width)  <= 1.0f);
     CHECK(std::abs(svgBar[3] - barBounds.height) <= 1.0f);
 
-    // SVG title: (totalWidth/2, cb.y - 10) = (150, 70)
-    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
-    INFO("SVG title: x=" << svgTitle[0] << " y=" << svgTitle[1]);
+    // SVG label: (totalWidth/2, cb.y - 10) = (150, 70)
+    auto svgLabel = extractSvgLabelPosition(svgStr, spec.label);
+    INFO("SVG label: x=" << svgLabel[0] << " y=" << svgLabel[1]);
 
-    // Raster title: drawn centered on titleRect (x=60, w=40, center=80)
-    float expectedRasterTitleX = static_cast<float>(titleRect.x) + static_cast<float>(titleRect.width) * 0.5f;
-    INFO("Expected raster title X (centered on titleRect): " << expectedRasterTitleX);
-    INFO("SVG title X: " << svgTitle[0] << " (expected: " << W/2.0f << ")");
-    INFO("Raster titleRect.y: " << titleRect.y << "  SVG title Y: " << svgTitle[1]);
+    // Raster label: drawn centered on labelRect (x=60, w=40, center=80)
+    float expectedRasterTitleX = static_cast<float>(labelRect.x) + static_cast<float>(labelRect.width) * 0.5f;
+    INFO("Expected raster label X (centered on labelRect): " << expectedRasterTitleX);
+    INFO("SVG label X: " << svgLabel[0] << " (expected: " << W/2.0f << ")");
+    INFO("Raster labelRect.y: " << labelRect.y << "  SVG label Y: " << svgLabel[1]);
 
     // Tick label positions: compare SVG text Y positions (major ticks only)
-    auto svgTickLabelsY = extractSvgTickLabelY(svgStr, spec.title);
+    auto svgTickLabelsY = extractSvgTickLabelY(svgStr, spec.label);
     INFO("SVG tick label Y positions (major ticks): " << svgTickLabelsY.size());
     for (size_t i = 0; i < svgTickLabelsY.size(); ++i) {
         INFO("  tick label " << i << ": y=" << svgTickLabelsY[i]);
@@ -2054,8 +2054,8 @@ TEST_CASE("raster-vs-vector: low-level horizontal placement", "[raster-vs-vector
     std::vector<uint32_t> rastBuf(static_cast<size_t>(W) * H, WHITE_PIXEL);
     scibar::Canvas rastCanvas{rastBuf.data(), W, H};
 
-    scibar::Rect titleRect{barBounds.x, 20, barBounds.width, 30};
-    scibar::Rect actualTitle = scibar::drawTitle(rastCanvas, titleRect, spec.title, style);
+    scibar::Rect labelRect{barBounds.x, 20, barBounds.width, 30};
+    scibar::Rect actualTitle = scibar::drawLabel(rastCanvas, labelRect, spec.label, style);
 
     scibar::Rect actualBar = scibar::drawColorBar(rastCanvas, barBounds, spec, style,
                                                    scibar::Orientation::Horizontal);
@@ -2068,7 +2068,7 @@ TEST_CASE("raster-vs-vector: low-level horizontal placement", "[raster-vs-vector
 
     INFO("Raster bar bounds:   x=" << actualBar.x << " y=" << actualBar.y
          << " w=" << actualBar.width << " h=" << actualBar.height);
-    INFO("Raster title bounds: x=" << actualTitle.x << " y=" << actualTitle.y
+    INFO("Raster label bounds: x=" << actualTitle.x << " y=" << actualTitle.y
          << " w=" << actualTitle.width << " h=" << actualTitle.height);
     INFO("Raster tick bounds:  x=" << tickBounds.x << " y=" << tickBounds.y
          << " w=" << tickBounds.width << " h=" << tickBounds.height);
@@ -2094,22 +2094,22 @@ TEST_CASE("raster-vs-vector: low-level horizontal placement", "[raster-vs-vector
     CHECK(std::abs(svgBar[3] - barBounds.height) <= 1.0f);
 
     // Title position: SVG uses (totalWidth/2, cb.y - 15) = (350, 55)
-    auto svgTitle = extractSvgTitlePosition(svgStr, spec.title);
+    auto svgLabel = extractSvgLabelPosition(svgStr, spec.label);
     float expectedSvgTitleX = static_cast<float>(W) / 2.0f;
     float expectedSvgTitleY = static_cast<float>(barBounds.y) - 15.0f;
-    INFO("SVG title: x=" << svgTitle[0] << " y=" << svgTitle[1]
+    INFO("SVG label: x=" << svgLabel[0] << " y=" << svgLabel[1]
          << " (expected x=" << expectedSvgTitleX << " y=" << expectedSvgTitleY << ")");
-    CHECK(svgTitle[0] == Catch::Approx(expectedSvgTitleX).margin(0.5f));
-    CHECK(svgTitle[1] == Catch::Approx(expectedSvgTitleY).margin(0.5f));
+    CHECK(svgLabel[0] == Catch::Approx(expectedSvgTitleX).margin(0.5f));
+    CHECK(svgLabel[1] == Catch::Approx(expectedSvgTitleY).margin(0.5f));
 
-    // Raster title was drawn centered on titleRect (x=80, w=540, center=350)
-    float expectedRasterTitleX = static_cast<float>(titleRect.x) +
-                                 static_cast<float>(titleRect.width) * 0.5f;
-    INFO("Expected raster title X (centered on titleRect): " << expectedRasterTitleX);
-    INFO("Raster titleRect.y: " << titleRect.y << "  SVG title Y: " << svgTitle[1]);
+    // Raster label was drawn centered on labelRect (x=80, w=540, center=350)
+    float expectedRasterTitleX = static_cast<float>(labelRect.x) +
+                                 static_cast<float>(labelRect.width) * 0.5f;
+    INFO("Expected raster label X (centered on labelRect): " << expectedRasterTitleX);
+    INFO("Raster labelRect.y: " << labelRect.y << "  SVG label Y: " << svgLabel[1]);
 
     // Tick labels: compare SVG text X positions with generated tick values
-    auto svgTickLabelsX = extractSvgTickLabelX(svgStr, spec.title);
+    auto svgTickLabelsX = extractSvgTickLabelX(svgStr, spec.label);
     INFO("SVG tick label X positions (major ticks): " << svgTickLabelsX.size());
     auto generatedTicks = scibar::generateTicks(spec.scale, 5, style.tickPrecision);
     float range = spec.scale.max - spec.scale.min;

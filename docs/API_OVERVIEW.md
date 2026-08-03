@@ -19,7 +19,7 @@ real-time overlays/HUDs).
 
 | Function | Description |
 |---|---|
-| `drawLegend(canvas, spec, style)` | Auto-layout: renders title, colorbar, major ticks, and sub-ticks in a single call. The vertical layout is computed automatically; for horizontal bars, pass `Orientation::Horizontal`. |
+| `drawLegend(canvas, spec, style)` | Auto-layout: renders label, colorbar, major ticks, and sub-ticks in a single call. The colorbar fills the canvas proportionally (see [Choosing a canvas size](#choosing-a-canvas-size)). For horizontal bars, pass `Orientation::Horizontal`. |
 
 ### Low-level
 
@@ -28,7 +28,7 @@ real-time overlays/HUDs).
 | `drawColorBar(canvas, bounds, spec, style, orientation)` | The gradient bar only. Returns the actual bounding box (including frame). |
 | `drawTicks(canvas, barBounds, spec, style, orientation)` | Major tick marks and labels. Auto-generates ticks if `spec.ticks` is empty. |
 | `drawSubTicks(canvas, barBounds, spec, style, orientation)` | Short, unlabeled sub-ticks between major ticks. |
-| `drawTitle(canvas, bounds, title, style)` | Title text, centered horizontally in the given bounds. |
+| `drawLabel(canvas, bounds, text, style)` | Colorbar label text, centered horizontally in the given bounds. |
 
 ### Utilities
 
@@ -49,7 +49,7 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | Function | Description |
 |---|---|
-| `exportLegendToSVG(spec, style, width, height, orientation)` | Auto-layout: returns a complete SVG document with title, colorbar, ticks, and sub-ticks. Mirrors `drawLegend()` for vector output. |
+| `exportLegendToSVG(spec, style, width, height, orientation)` | Auto-layout: returns a complete SVG document with label, colorbar, ticks, and sub-ticks. Mirrors `drawLegend()` for vector output. |
 
 ### Low-level
 
@@ -94,7 +94,7 @@ Use these for publication-quality vector graphics and hybrid figures
 |---|---|
 | Quick raster colorbar, default layout | `drawLegend(canvas, spec, style)` |
 | Quick SVG colorbar, default layout | `exportLegendToSVG(spec, style, w, h)` |
-| Raster with pixel-level control | `drawColorBar()` + `drawTicks()` + `drawSubTicks()` + `drawTitle()` |
+| Raster with pixel-level control | `drawColorBar()` + `drawTicks()` + `drawSubTicks()` + `drawLabel()` |
 | SVG with exact bounds or hybrid image | `exportToSVG(spec, style, options)` |
 | Identical layout in both PNG and SVG | `computeLegendLayout()` → pass bounds to both backends |
 
@@ -116,9 +116,9 @@ drawLegend(canvas, spec, Style::defaultLight());
 
 ```cpp
 Rect barRect{50, 45, 500, 30};
-Rect titleRect{barRect.x, barRect.y - 35, barRect.width, 30};
+Rect labelRect{barRect.x, barRect.y - 35, barRect.width, 30};
 
-drawTitle(canvas, titleRect, spec.title, style);
+drawLabel(canvas, labelRect, spec.label, style);
 drawColorBar(canvas, barRect, spec, style, Orientation::Horizontal);
 drawTicks(canvas, barRect, spec, style, Orientation::Horizontal);
 drawSubTicks(canvas, barRect, spec, style, Orientation::Horizontal);
