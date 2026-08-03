@@ -52,9 +52,8 @@
 /// - **Perceptually-uniform colormaps**: viridis, vik (256 entries each)
 /// - **Embedded font**: Inter (SIL Open Font License), zero-config
 ///
-/// Dependencies (vendored in `src/third_party/`):
-///   - `canvas_ity.hpp` (ISC license) — 2D rasterization
-///   - `stb_truetype.h` (Public Domain) — font metrics & glyph rasterization
+/// For vendored dependency and embedded asset licenses, see
+/// `src/third_party/THIRD_PARTY_LICENSES.md`.
 ///
 /// @see [API Reference](annotated.html), [Getting Started](md_docs_GETTING_STARTED.html)
 
