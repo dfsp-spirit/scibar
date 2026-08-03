@@ -109,6 +109,38 @@ Use `drawLegend()` for rapid prototyping and debug overlays.
 Use the low-level API (`drawColorBar`, `drawTicks`, `drawLabel`) for
 anything that will appear in a publication.
 
+### Q: My SVG and raster outputs look slightly different — labels are shifted or text sizes don't match. Why?
+
+This is expected. The two backends render text very differently:
+
+- **Raster** uses stb_truetype to rasterize glyphs into the pixel buffer.
+  Every pixel is exact — what you see is what's in the file.
+
+- **SVG** is interpreted by a viewer (browser, image viewer, Inkscape).
+  The SVG file contains coordinates and font instructions, but the actual
+  rendering depends on the viewer engine.
+
+Common causes of differences:
+
+| Cause | Effect | Affected viewers |
+|---|---|---|
+| `dominant-baseline` not supported | Labels shift vertically, may overlap the bar | librsvg (Ubuntu Image Viewer, GNOME) |
+| Font metrics differ from stb_truetype | Slightly different text heights or positions | All viewers (each font engine is unique) |
+| SVG `<text>` anti-aliasing vs raster aa | Text may appear slightly bolder or thinner | Varies by viewer |
+| Sub-pixel rendering | SVG text edges look different from raster | All viewers |
+
+**Recommendation:** View SVG output in Chrome, Firefox, or Inkscape for
+the most accurate rendering. The Ubuntu Image Viewer (Eye of GNOME) uses
+librsvg, which has known issues with `dominant-baseline`.
+
+If you need pixel-identical output across viewers, stick with raster (PPM/PNG).
+
+**Converting to PDF?** The same caveats apply — the converter is just another
+SVG renderer. Inkscape CLI (`inkscape --export-filename=out.pdf in.svg`) and
+Chrome headless (`chromium --headless --print-to-pdf=out.pdf in.svg`) produce
+the most faithful results. Avoid librsvg-based converters (`rsvg-convert`)
+for scibar SVGs. See the PDF conversion FAQ above for details.
+
 ## Colormaps
 
 ### Q: How do I use my own colormap?
@@ -206,27 +238,38 @@ Invalid input triggers assertions in debug builds.  This is a deliberate
 design choice: scibar is a low-level building block, and the caller is
 expected to validate inputs.
 
-### The vector output format of scibar is SVG, put I need PDF!
+### The vector output format of scibar is SVG, but I need PDF!
 
 The conversion between these formats is easy and there are many established tools for this. E.g., under Linux, try one of these options:
 
 ```shell
-# Option 1: librsvg (lightweight, no GUI, almost certainly already installed)
-rsvg-convert -f pdf -o figure.pdf figure.svg
-
-# Option 2: Inkscape (heavier but very reliable)
+# Option 1: Inkscape CLI (most reliable — no X11/GUI required)
 inkscape --export-filename=figure.pdf figure.svg
 
-# Option 3: CairoSVG (Python)
+# Option 2: Chrome/Chromium headless (excellent SVG support, same engine as viewing)
+chromium --headless --print-to-pdf=figure.pdf figure.svg
+
+# Option 3: librsvg (lightweight, fast — but has known issues with text baseline)
+rsvg-convert -f pdf -o figure.pdf figure.svg
+
+# Option 4: CairoSVG (Python)
 cairosvg figure.svg -o figure.pdf
 ```
 
-We recommend `rsvg-convert` — it's tiny (no X11/GUI deps), fast, handles SVG gradients and embedded images properly, and is packaged for every distro.
+**We recommend Inkscape CLI** — it doesn't require X11/GUI (`--export-filename` works headlessly), handles `dominant-baseline` correctly, embeds glyph outlines faithfully, and is packaged for every distro.
 
-Under Debian-based distros like Ubuntu, something like this will get you all of them:
+**⚠️ Avoid librsvg for scibar SVGs** — librsvg (used by `rsvg-convert` and the Ubuntu Image Viewer) has known issues with `dominant-baseline`, causing tick labels to shift and overlap the bar. See the "SVG vs. raster" FAQ below for details.
+
+**For CI pipelines / HPC / headless environments**, both Inkscape CLI and Chrome headless work without a display server. Install with:
 
 ```shell
-sudo apt install librsvg2-bin inkscape cairosvg
+# Inkscape (headless-safe)
+sudo apt install inkscape
+
+# Chrome headless
+sudo apt install chromium-browser
 ```
+
+If you cannot install either (e.g., minimal Docker image), `rsvg-convert` is an acceptable fallback — just be aware that text positioning may differ from the raster output.
 
 Please note that we will not re-implement the general-purpose functionality of SVG to PDF conversion in scibar, as that is clearly out of scope.
