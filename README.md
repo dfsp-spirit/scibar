@@ -31,7 +31,7 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 - **Colormap direction** — independently toggle axis inversion and colormap reversal
 - **Light & dark themes** — `Style::defaultLight()` and `Style::defaultDark()`, fully customizable
 - **Embedded font** — Inter Regular baked in, zero-config; drop in any `.ttf` for custom fonts
-- **Two API levels** — `drawLegend()` for rapid prototyping, low-level `drawColorBar`/`drawTicks`/`drawTitle` for full control
+- **Two API levels** — `drawLegend()` for rapid prototyping, low-level `drawColorBar`/`drawTicks`/`drawLabel` for full control
 - **Tick styling** — inward/outward ticks, sub-ticks on/off, configurable lengths
 
 
@@ -42,7 +42,7 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 Rather than forcing a full layout framework on you, we offer two API levels:
 
 - **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — single call, auto-layout, sensible defaults.
-- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawTitle()` (raster) and `exportToSVG()` (vector) — full manual control over placement and geometry.
+- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — full manual control over placement and geometry.
 
 
 ## Documentation
