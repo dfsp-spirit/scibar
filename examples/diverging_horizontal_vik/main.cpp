@@ -1,11 +1,9 @@
 // scibar example: horizontal diverging colorbar with vik colormap
 // Demonstrates low-level API for manual horizontal layout with diverging scale.
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar/scibar.hpp"
-#include "../../src/third_party/stb_image_write.h"
 
 #include <cstdio>
 #include <cstdlib>

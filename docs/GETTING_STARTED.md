@@ -58,7 +58,7 @@ int main() {
     Canvas canvas{buf.data(), W, H};
 
     // 2. Define the data domain and colormap
-    auto cmap = util::viridis();   // built-in 256-entry colormap
+    std::vector<Color> cmap = util::viridis();   // built-in 256-entry colormap
     Spec spec;
     spec.scale = Scale{ScaleType::Linear, 0.0f, 100.0f};
     spec.label = "Temperature (°C)";
@@ -84,7 +84,7 @@ int main() {
 int main() {
     using namespace scibar;
 
-    auto cmap = util::vik();   // diverging colormap
+    std::vector<Color> cmap = util::vik();   // diverging colormap
     Spec spec;
     spec.scale = Scale{ScaleType::Linear, -3.5f, 3.5f};
     spec.label = "Z-Score";

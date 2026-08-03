@@ -1,12 +1,36 @@
 # API Overview {#api_overview}
 
-scibar provides two API levels — **high-level** (single call, auto-layout) and
+scibar provides three API levels — **zero-friction** (one call to file),
+**high-level** (single call, auto-layout into your buffer), and
 **low-level** (manual positioning, full control) — across two output backends
 (raster pixels and vector SVG).
 
 > **Related:** [Getting Started](@ref getting_started) ·
 > [FAQ](@ref faq) ·
 > [Full API Reference](namespacescibar.html)
+
+---
+
+## Zero-Friction API — one call to file
+
+Use when you just want a colorbar saved to disk with zero boilerplate.
+Format auto-detected from file extension (`.ppm`, `.png`, `.svg`).
+
+| Function | Description |
+|---|---|
+| `exportColorbar(opts, path)` | Render and save a complete colorbar in one call. All settings are in `ExportOpts` — only `colormap` is required. |
+
+### ExportOpts quick reference
+
+| Field | Default | Description |
+|---|---|---|
+| `scale` | `{Linear, 0, 100}` | Data domain — [Linear/Log/Diverging/Categorical](@ref scibar::ScaleType) |
+| `label` | `""` (none) | Optional text centered on the bar |
+| `colormap` | *required* | Non-owning [ColorMapView](@ref scibar::ColorMapView) — store backing vector locally! |
+| `orientation` | `Vertical` | `Vertical` or `Horizontal`; drives auto canvas size |
+| `style` | `defaultLight()` | Colors, font, tick sizes — [Style](@ref scibar::Style) |
+| `canvasW` | `0` (auto) | Override canvas width; auto = 200 (V) / 500 (H) |
+| `canvasH` | `0` (auto) | Override canvas height; auto = 500 (V) / 200 (H) |
 
 ---
 
@@ -92,19 +116,32 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | You want… | Use… |
 |---|---|
-| Quick raster colorbar, default layout | `drawLegend(canvas, spec, style)` |
-| Quick SVG colorbar, default layout | `exportLegendToSVG(spec, style, w, h)` |
+| Save colorbar to disk, zero boilerplate | `exportColorbar(opts, "file.png")` |
+| Quick raster colorbar into your buffer | `drawLegend(canvas, spec, style)` |
+| Quick SVG colorbar into a string | `exportLegendToSVG(spec, style, w, h)` |
 | Raster with pixel-level control | `drawColorBar()` + `drawTicks()` + `drawSubTicks()` + `drawLabel()` |
 | SVG with exact bounds or hybrid image | `exportToSVG(spec, style, options)` |
 | Identical layout in both PNG and SVG | `computeLegendLayout()` → pass bounds to both backends |
 
-**Rule of thumb:** Start with the high-level function. If you need to tweak
-positions, switch to the low-level equivalents. If you're producing both
-PNG and SVG, call `computeLegendLayout()` once so both outputs match.
+**Rule of thumb:** Start with `exportColorbar()` for quick results. Drop to
+`drawLegend()` / `exportLegendToSVG()` when you need to manage the canvas
+buffer yourself. Use the low-level functions for pixel-level placement control.
+If you're producing both PNG and SVG, call `computeLegendLayout()` once so
+both outputs match.
 
 ---
 
 ## Minimal Examples
+
+**Zero-friction (one call to file):**
+
+```cpp
+std::vector<Color> cmap = util::viridis();  // store locally!
+ExportOpts opts;
+opts.scale    = {ScaleType::Linear, 0.0f, 100.0f};
+opts.colormap = cmap;
+exportColorbar(opts, "colorbar.png");
+```
 
 **High-level raster (one call):**
 

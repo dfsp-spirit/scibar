@@ -13,11 +13,9 @@
 //   - On continuous scales, the two flags cancel for colors but NOT for labels.
 //     The gradient pixels are identical to default, but tick positions are flipped.
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar/scibar.hpp"
-#include "../../src/third_party/stb_image_write.h"
 
 #include <cstdio>
 #include <cstdlib>

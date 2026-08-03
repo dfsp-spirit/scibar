@@ -703,6 +703,121 @@ struct SVGOptions {
     Rect labelBounds;       ///< Where to place the colorbar label; computed by exportLegendToSVG() / computeLegendLayout()
 };
 
+/// @brief Convenience options for the zero-friction exportColorbar() API.
+///
+/// Collects every setting needed to render and save a colorbar in a single
+/// call. All fields have sensible defaults — the only required field is
+/// `colormap`. The colormap is a @ref ColorMapView (non-owning) — you must
+/// keep the backing `std::vector<Color>` alive until exportColorbar() returns.
+///
+/// @par Minimal: one colormap, one filename (3 lines)
+/// @code
+/// std::vector<Color> cmap = scibar::util::viridis();
+/// ExportOpts opts;
+/// opts.colormap = cmap;
+/// exportColorbar(opts, "bar.svg");
+/// @endcode
+///
+/// @par Typical: scale + label (6 lines)
+/// @code
+/// std::vector<Color> cmap = scibar::util::viridis();
+/// ExportOpts opts;
+/// opts.scale    = {ScaleType::Linear, 0.0f, 100.0f};
+/// opts.label    = "Temperature (°C)";
+/// opts.colormap = cmap;
+/// exportColorbar(opts, "colorbar.png");
+/// @endcode
+///
+/// @par All options (diverging colormap, horizontal, custom canvas)
+/// @code
+/// std::vector<Color> cmap = scibar::util::vik();
+/// ExportOpts opts;
+/// opts.scale       = {ScaleType::Diverging, -3.0f, 3.0f, 0.0f}; // midpoint=0
+/// opts.label       = "Z-Score";
+/// opts.orientation = Orientation::Horizontal;
+/// opts.canvasW     = 800;
+/// opts.canvasH     = 300;
+/// opts.colormap    = cmap;
+/// opts.style       = Style::defaultDark();  // white text, dark-optimized
+/// exportColorbar(opts, "diverging_horizontal.png");
+/// @endcode
+///
+/// @see exportColorbar(), ColorMapView, Scale, Style
+struct ExportOpts {
+    /// @brief Data domain: min, max, scale type, and direction.
+    ///
+    /// The scale defines the mapping from data values to bar position.
+    ///
+    /// | `type` | Description | `midpoint` |
+    /// |---|---|---|
+    /// | `ScaleType::Linear` | Uniform spacing (default) | ignored |
+    /// | `ScaleType::Logarithmic` | Log₁₀ spacing; min must be > 0 | ignored |
+    /// | `ScaleType::Diverging` | Two linear ranges meeting at `midpoint` | required |
+    /// | `ScaleType::Categorical` | Equal-width blocks per colormap entry | ignored |
+    ///
+    /// Set `scale.inverted = true` to flip the data direction (min↔max swap ends
+    /// of the bar while keeping colormap colors in place).
+    ///
+    /// @code
+    /// opts.scale = {ScaleType::Linear, 0.0f, 100.0f};                  // default
+    /// opts.scale = {ScaleType::Logarithmic, 1.0f, 1000.0f};            // log
+    /// opts.scale = {ScaleType::Diverging, -3.0f, 3.0f, 0.0f};         // diverging
+    /// opts.scale = {ScaleType::Categorical, 0.0f, 4.0f};               // 5 categories
+    /// @endcode
+    Scale scale {ScaleType::Linear, 0.0f, 100.0f};
+
+    /// @brief Optional label text displayed above (vertical) or beside (horizontal) the bar.
+    ///
+    /// Empty string = no label. The label is centered on the colorbar.
+    /// For long labels, increase `canvasW` or `canvasH` to provide more space.
+    std::string label;
+
+    /// @brief Colormap lookup table — **non-owning view.**
+    ///
+    /// You **must** keep the backing `std::vector<Color>` alive until
+    /// `exportColorbar()` returns. The rvalue constructor is deleted to
+    /// prevent accidental dangling at compile time.
+    ///
+    /// Built-in colormaps (zero allocation):
+    /// - `scibar::util::viridis()` — sequential (blue→green→yellow), 256 entries
+    /// - `scibar::util::vik()` — diverging (blue→yellow→red), 256 entries
+    ///
+    /// Custom colormap from a vector:
+    /// @code
+    /// std::vector<Color> myCmap = {{255,0,0,255}, {0,255,0,255}, {0,0,255,255}};
+    /// opts.colormap = myCmap;  // myCmap must outlive exportColorbar()
+    /// @endcode
+    ColorMapView colormap;
+
+    /// @brief Bar direction: `Orientation::Vertical` (default) or `Orientation::Horizontal`.
+    ///
+    /// Determines the canvas auto-size defaults (200×500 vs 500×200) and the
+    /// layout of ticks and labels around the bar.
+    Orientation orientation = Orientation::Vertical;
+
+    /// @brief Visual style — colors, font, tick sizes, frame.
+    ///
+    /// Factory defaults:
+    /// - `Style::defaultLight()` — black text/frame/ticks, transparent bg (default)
+    /// - `Style::defaultDark()` — white text/frame/ticks, transparent bg
+    ///
+    /// Tweak individual fields after construction:
+    /// @code
+    /// opts.style = Style::defaultLight();
+    /// opts.style.font.size = 18.0f;       // larger text
+    /// opts.style.tickLength = 8.0f;       // longer ticks
+    /// opts.style.showFrame  = false;      // no border
+    /// opts.style.reverseColors = true;    // flip colormap direction
+    /// @endcode
+    Style style = Style::defaultLight();
+
+    /// @brief Canvas width in pixels. 0 = auto (200 vertical, 500 horizontal).
+    int canvasW = 0;
+
+    /// @brief Canvas height in pixels. 0 = auto (500 vertical, 200 horizontal).
+    int canvasH = 0;
+};
+
 // =========================================================================
 // API Declarations
 // =========================================================================
@@ -1273,6 +1388,70 @@ std::string exportLegendToSVG(const Spec& spec,
 /// @see Canvas, fillCanvas()
 bool writePPM(const Canvas& canvas, const char* path);
 
+/// @brief Zero-friction colorbar export — one struct, one call, any format.
+///
+/// Renders a complete colorbar (gradient bar, ticks, sub-ticks, and label)
+/// and writes it directly to a file. The output format is auto-detected from
+/// the filename extension:
+///
+/// | Extension | Format | Backend | Notes |
+/// |---|---|---|---|
+/// | `.ppm` | PPM P3 (plain text) | Built-in | Zero dependencies, readable by ImageMagick/GIMP/feh |
+/// | `.png` | PNG (lossless) | stb_image_write (vendored) | Compact, production-ready |
+/// | `.svg` | SVG (vector) | Built-in | Publication-quality vector graphics |
+///
+/// Canvas size auto-detects from `ExportOpts::orientation`: vertical defaults
+/// to 200×500, horizontal to 500×200. Override with `ExportOpts::canvasW`
+/// and `ExportOpts::canvasH`.
+///
+/// Internally delegates to `drawLegend()` (raster) or `exportLegendToSVG()`
+/// (vector), so the same layout engine is used for all formats.
+///
+/// @par Quick-start: absolute minimum (4 lines)
+/// @code
+/// std::vector<Color> cmap = scibar::util::viridis();  // store colormap locally!
+/// scibar::ExportOpts opts;
+/// opts.colormap = cmap;
+/// scibar::exportColorbar(opts, "colorbar.ppm");
+/// @endcode
+///
+/// @par Diverging data with custom label
+/// @code
+/// std::vector<Color> cmap = scibar::util::vik();
+/// ExportOpts opts;
+/// opts.scale    = {ScaleType::Diverging, -3.0f, 3.0f, 0.0f};
+/// opts.label    = "Z-Score";
+/// opts.colormap = cmap;
+/// exportColorbar(opts, "diverging.svg");
+/// @endcode
+///
+/// @par Horizontal bar with custom canvas and dark theme
+/// @code
+/// std::vector<Color> cmap = scibar::util::viridis();
+/// ExportOpts opts;
+/// opts.scale       = {ScaleType::Linear, 0.0f, 1.0f};
+/// opts.orientation = Orientation::Horizontal;
+/// opts.canvasW     = 800;
+/// opts.canvasH     = 200;
+/// opts.style       = Style::defaultDark();
+/// opts.colormap    = cmap;
+/// exportColorbar(opts, "wide_horizontal.png");
+/// @endcode
+///
+/// @note To disable built-in PNG support (e.g., to use your own stb_image_write
+/// or reduce code size), `#define SCIBAR_NO_PNG` before including scibar.hpp.
+/// PPM and SVG output are unaffected. See the FAQ for details.
+///
+/// @param opts  All settings — at minimum, set `opts.colormap`.
+/// @param path  Output file path. Extension must be `.ppm`, `.png`, or `.svg`.
+///
+/// @return `true` if the file was written successfully, `false` if the extension
+///         is unrecognized, PNG is disabled via `SCIBAR_NO_PNG`, or the file
+///         could not be opened.
+///
+/// @see ExportOpts, drawLegend(), exportLegendToSVG(), writePPM()
+bool exportColorbar(const ExportOpts& opts, const char* path);
+
 } // namespace scibar
 
 // =========================================================================
@@ -1731,6 +1910,17 @@ std::string imageToDataURI(const std::string& filePath);
 
 #include "../third_party/canvas_ity.hpp"
 #include "../third_party/stb_truetype.h"
+
+#ifndef SCIBAR_NO_PNG
+// stb_image_write.h has no include guard — it's designed to be included
+// once with STB_IMAGE_WRITE_IMPLEMENTATION. scibar uses STB_IMAGE_WRITE_STATIC
+// instead: all functions get internal linkage (static), so each translation
+// unit gets its own copy and there are no ODR conflicts with user code.
+// This makes PNG "just work" without the user needing to set up stb.
+#define STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../third_party/stb_image_write.h"
+#endif
 
 #include <cstdio>
 #include <cstring>
@@ -36883,6 +37073,86 @@ bool writePPM(const Canvas& canvas, const char* path) {
         out << int(c.r) << " " << int(c.g) << " " << int(c.b) << "\n";
     }
     return out.good();
+}
+
+// =========================================================================
+// PNG helper (implementation in stb_image_write included above)
+// =========================================================================
+
+#ifndef SCIBAR_NO_PNG
+namespace {
+bool writePNG(const Canvas& canvas, const char* path) {
+    return stbi_write_png(path, canvas.width, canvas.height, 4,
+                          canvas.pixels, canvas.width * 4) != 0;
+}
+} // anonymous namespace
+#endif // SCIBAR_NO_PNG
+
+// =========================================================================
+// Export convenience: exportColorbar
+// =========================================================================
+
+bool exportColorbar(const ExportOpts& opts, const char* path) {
+    assert(opts.colormap.data && opts.colormap.size > 0 && "Colormap must not be empty");
+    assert(path && path[0] && "Output path must not be null or empty");
+
+    // Detect format from file extension.
+    std::string pathStr(path);
+    auto dot = pathStr.rfind('.');
+    if (dot == std::string::npos) return false;
+    std::string ext = pathStr.substr(dot);
+    for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+
+    bool isSvg = (ext == ".svg");
+    bool isPng = (ext == ".png");
+    bool isPpm = (ext == ".ppm");
+    if (!isSvg && !isPng && !isPpm) return false;
+
+    // Build a Spec from ExportOpts.
+    Spec spec;
+    spec.scale    = opts.scale;
+    spec.label    = opts.label;
+    spec.colormap = opts.colormap;
+
+    // Determine canvas size (auto or user-specified).
+    int cw = opts.canvasW;
+    int ch = opts.canvasH;
+    if (cw <= 0 || ch <= 0) {
+        if (opts.orientation == Orientation::Horizontal) {
+            if (cw <= 0) cw = 500;
+            if (ch <= 0) ch = 200;
+        } else {
+            if (cw <= 0) cw = 200;
+            if (ch <= 0) ch = 500;
+        }
+    }
+
+    // SVG path
+    if (isSvg) {
+        std::string svgStr = exportLegendToSVG(spec, opts.style, cw, ch,
+                                                opts.orientation);
+        std::ofstream out(path);
+        if (!out) return false;
+        out << svgStr;
+        return out.good();
+    }
+
+    // Raster path — allocate canvas and render
+    std::vector<uint32_t> buf(cw * ch);
+    Canvas canvas{buf.data(), cw, ch};
+    fillCanvas(canvas, Color{255, 255, 255, 255});
+
+    drawLegend(canvas, spec, opts.style, opts.orientation);
+
+    if (isPng) {
+#ifndef SCIBAR_NO_PNG
+        return writePNG(canvas, path);
+#else
+        return false; // PNG support compiled out
+#endif
+    }
+
+    return writePPM(canvas, path);
 }
 
 // =========================================================================

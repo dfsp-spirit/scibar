@@ -1,11 +1,9 @@
 // scibar example: viridis colorbar with PNG + SVG output
 // Demonstrates high-level API (vertical layout) with fillCanvas background.
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar/scibar.hpp"
-#include "../../src/third_party/stb_image_write.h"
 
 #include <cstdio>
 #include <cstdlib>

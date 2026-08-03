@@ -222,6 +222,48 @@ opts.colorbarBounds  = {600, 50, 120, 500};
 The image is embedded with `image-rendering="crisp-edges"` to prevent
 bilinear blurring of scientific data.
 
+## PNG Export / stb_image_write
+
+### Q: Does `exportColorbar()` support PNG output? How?
+
+Yes — out of the box. scibar vendors `stb_image_write.h` (public domain) and
+compiles it with `STB_IMAGE_WRITE_STATIC` (internal linkage) so it
+never conflicts with your own use of stb libraries.  PNG, PPM, and SVG all
+work with zero configuration:
+
+```cpp
+exportColorbar(opts, "colorbar.png");  // PNG  (stb_image_write)
+exportColorbar(opts, "colorbar.ppm");  // PPM  (zero-dependency plaintext)
+exportColorbar(opts, "colorbar.svg");  // SVG  (zero-dependency vector)
+```
+
+### Q: How do I disable scibar's built-in PNG support?
+
+Define `SCIBAR_NO_PNG` **before** including scibar.hpp:
+
+```cpp
+#define SCIBAR_NO_PNG
+#define SCIBAR_IMPLEMENTATION
+#include "scibar/scibar.hpp"
+```
+
+**Consequences:**
+
+- `exportColorbar(opts, "file.png")` returns `false` — PNG output is not available.
+- PPM and SVG output continue to work normally.
+- scibar does **not** include `stb_image_write.h` at all — no stb code in your
+  translation units, and no include-path dependency on scibar's vendored stb header.
+
+When to use this:
+
+| Scenario | Action |
+|---|---|
+| You want smaller compilation / less code in each TU | `#define SCIBAR_NO_PNG` |
+| Your project already uses stb_image_write.h at a different path | `#define SCIBAR_NO_PNG` |
+| You want to call `stbi_write_png` yourself on a scibar `Canvas` | No action needed — scibar's stb is static, so it never conflicts with yours |
+
+See `examples/no_png/` for a complete example.
+
 ## Error Handling
 
 ### Q: What happens if I pass invalid data?

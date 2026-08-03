@@ -1,11 +1,9 @@
 // scibar example: categorical vertical colorbar
 // Demonstrates high-level API (vertical layout) with a categorical (qualitative) scale.
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar/scibar.hpp"
-#include "../../src/third_party/stb_image_write.h"
 
 #include <cstdio>
 #include <cstdlib>

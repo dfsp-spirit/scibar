@@ -31,7 +31,7 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 - **Colormap direction** — independently toggle axis inversion and colormap reversal
 - **Light & dark themes** — `Style::defaultLight()` and `Style::defaultDark()`, fully customizable
 - **Embedded font** — Inter Regular baked in, zero-config; drop in any `.ttf` for custom fonts
-- **Two API levels** — `drawLegend()` for rapid prototyping, low-level `drawColorBar`/`drawTicks`/`drawLabel` for full control
+- **Three API levels** — zero-friction `exportColorbar()` for one-call export, `drawLegend()` for rapid prototyping, low-level `drawColorBar`/`drawTicks`/`drawLabel` for full control
 - **Tick styling** — inward/outward ticks, sub-ticks on/off, configurable lengths
 
 
@@ -39,9 +39,10 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 
 **scibar is not a layout engine.**
 
-Rather than forcing a full layout framework on you, we offer two API levels:
+Rather than forcing a full layout framework on you, we offer three API levels:
 
-- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — single call, auto-layout, sensible defaults.
+- **Zero-friction:** `exportColorbar()` — one call: choose a colormap, pick a filename, done. Auto-detects format from extension (`.ppm`, `.png`, `.svg`).
+- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — single call, auto-layout, sensible defaults, full control over the canvas buffer.
 - **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — full manual control over placement and geometry.
 
 
@@ -60,30 +61,17 @@ Rather than forcing a full layout framework on you, we offer two API levels:
 #define SCIBAR_IMPLEMENTATION
 #include "scibar/scibar.hpp"
 
-#include <vector>
-
 int main() {
     using namespace scibar;
 
-    // Create a canvas to draw on
-    const int W = 200, H = 500;   // suggested: 200×500 for vertical, 500×200 for horizontal
-    std::vector<uint32_t> buf(W * H);
-    Canvas canvas{buf.data(), W, H};
-    fillCanvas(canvas, Color{255, 255, 255, 255}); // your background RGBA color of choice
+    std::vector<Color> cmap = util::viridis();  // store locally — ColorMapView is non-owning
+    ExportOpts opts;
+    opts.scale    = {ScaleType::Linear, 0.0f, 100.0f};  // data from 0 to 100
+    opts.label    = "Temperature (°C)";
+    opts.colormap = cmap;  // non-owning view — cmap must outlive the export call
 
-    // Create the spec: colormap, scale type, and the data range
-    auto cmap = util::viridis();   // store locally — ColorMapView is non-owning.
-    Spec spec;
-    spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f}; // Linear, data from 0 to 100
-    spec.label    = "Temperature (°C)";
-    spec.colormap = cmap;
-
-    // Render with the high-level API — handles label, colorbar, ticks, sub-ticks automatically
-    Style style = Style::defaultLight();  // You could adapt style to your needs
-    drawLegend(canvas, spec, style); // drawLegend is the high-level API for raster output
-
-    // Save as PPM (no external dependencies), or PNG.
-    writePPM(canvas, "colorbar.ppm");
+    // One call: auto-detects format from extension (.ppm / .png / .svg)
+    exportColorbar(opts, "colorbar.png");
 
     return 0;
 }

@@ -6,11 +6,9 @@
 // The bundled Libertinus Serif (OFL license) is a serif font designed for
 // academic publishing — a natural complement to the embedded Inter sans-serif.
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar/scibar.hpp"
-#include "../../src/third_party/stb_image_write.h"
 
 #include <cstdio>
 #include <cstdlib>

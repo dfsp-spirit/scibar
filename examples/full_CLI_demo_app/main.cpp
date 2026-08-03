@@ -14,11 +14,9 @@
 // Dependencies (vendored alongside this file):
 //   toml.hpp — toml++ single-header (MIT), TOML config parsing
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define SCIBAR_IMPLEMENTATION
 
 #include "../../src/core/scibar/scibar.hpp"
-#include "../../src/third_party/stb_image_write.h"
 #include "toml.hpp"
 
 #include <cstdio>

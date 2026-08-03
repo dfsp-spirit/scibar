@@ -2358,3 +2358,160 @@ TEST_CASE("sampleColormap with viridis", "[util]") {
         REQUIRE(c.a == 255);
     }
 }
+
+// =========================================================================
+// exportColorbar — zero-friction convenience API
+// =========================================================================
+
+TEST_CASE("exportColorbar PPM output", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+    opts.label    = "Test Label";
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_ppm.ppm";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    // File must exist and be non-empty
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    REQUIRE(in.good());
+    REQUIRE(in.tellg() > 0);
+}
+
+TEST_CASE("exportColorbar SVG output", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+    opts.label    = "Test Label";
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_svg.svg";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    std::ifstream in(path);
+    REQUIRE(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    REQUIRE(content.find("<svg") != std::string::npos);
+    REQUIRE(content.find("Test Label") != std::string::npos);
+}
+
+#ifndef SCIBAR_NO_PNG
+TEST_CASE("exportColorbar PNG output", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+    opts.label    = "Test Label";
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_png.png";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    // File must exist, be non-empty, and start with PNG magic
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    REQUIRE(in.good());
+    REQUIRE(in.tellg() > 8);
+    in.seekg(0);
+    char magic[4];
+    in.read(magic, 4);
+    REQUIRE(static_cast<unsigned char>(magic[0]) == 0x89);
+    REQUIRE(magic[1] == 'P');
+    REQUIRE(magic[2] == 'N');
+    REQUIRE(magic[3] == 'G');
+}
+#endif
+
+TEST_CASE("exportColorbar horizontal orientation", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap    = scibar::ColorMapView(testColormap());
+    opts.label       = "Horizontal Test";
+    opts.orientation = scibar::Orientation::Horizontal;
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_horizontal.svg";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    std::ifstream in(path);
+    REQUIRE(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    REQUIRE(content.find("Horizontal Test") != std::string::npos);
+}
+
+TEST_CASE("exportColorbar default canvas size vertical", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_default_vertical.svg";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    std::ifstream in(path);
+    REQUIRE(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    // Default vertical canvas: 200×500
+    REQUIRE(content.find("width=\"200\"") != std::string::npos);
+    REQUIRE(content.find("height=\"500\"") != std::string::npos);
+}
+
+TEST_CASE("exportColorbar default canvas size horizontal", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap    = scibar::ColorMapView(testColormap());
+    opts.orientation = scibar::Orientation::Horizontal;
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_default_horizontal.svg";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    std::ifstream in(path);
+    REQUIRE(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    // Default horizontal canvas: 500×200
+    REQUIRE(content.find("width=\"500\"") != std::string::npos);
+    REQUIRE(content.find("height=\"200\"") != std::string::npos);
+}
+
+TEST_CASE("exportColorbar custom canvas size", "[export]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+    opts.canvasW  = 400;
+    opts.canvasH  = 800;
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_custom_size.svg";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    std::ifstream in(path);
+    REQUIRE(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    REQUIRE(content.find("width=\"400\"") != std::string::npos);
+    REQUIRE(content.find("height=\"800\"") != std::string::npos);
+}
+
+TEST_CASE("exportColorbar invalid extension returns false", "[export]") {
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+
+    bool ok = scibar::exportColorbar(opts, "/tmp/test.bmp");
+    REQUIRE_FALSE(ok);
+}
+
+TEST_CASE("exportColorbar empty colormap asserts", "[export]") {
+    scibar::ExportOpts opts;
+    // colormap intentionally left empty — should trigger assertion in debug
+}
