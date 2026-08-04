@@ -18,7 +18,7 @@ Format auto-detected from file extension (`.ppm`, `.png`, `.tga`, `.svg`).
 
 | Function | Description |
 |---|---|
-| `exportColorbar(opts, path)` | Render and save a complete colorbar in one call. All settings are in `ExportOpts` — only `colormap` is required. |
+| [`exportColorbar(opts, path)`](@ref scibar::exportColorbar) | Render and save a complete colorbar in one call. All settings are in `ExportOpts` — only `colormap` is required. |
 
 ### ExportOpts quick reference
 
@@ -44,24 +44,24 @@ real-time overlays/HUDs).
 
 | Function | Description |
 |---|---|
-| `drawLegend(canvas, spec, style)` | Auto-layout: renders label, colorbar, major ticks, and sub-ticks in a single call. The colorbar fills the canvas proportionally (see [Choosing a canvas size](@ref getting_started)). For horizontal bars, pass `Orientation::Horizontal`. |
+| [`drawLegend(canvas, spec, style)`](@ref scibar::drawLegend) | Auto-layout: renders label, colorbar, major ticks, and sub-ticks in a single call. The colorbar fills the canvas proportionally (see [Choosing a canvas size](@ref getting_started)). For horizontal bars, pass `Orientation::Horizontal`. |
 
 ### Low-level
 
 | Function | Description |
 |---|---|
-| `drawColorBar(canvas, bounds, spec, style, orientation)` | The gradient bar only. Returns the actual bounding box (including frame). |
-| `drawTicks(canvas, barBounds, spec, style, orientation)` | Major tick marks and labels. Auto-generates ticks if `spec.ticks` is empty. |
-| `drawSubTicks(canvas, barBounds, spec, style, orientation)` | Short, unlabeled sub-ticks between major ticks. |
-| `drawLabel(canvas, bounds, text, style)` | Colorbar label text, centered horizontally in the given bounds. |
+| [`drawColorBar(canvas, bounds, spec, style, orientation)`](@ref scibar::drawColorBar) | The gradient bar only. Returns the actual bounding box (including frame). |
+| [`drawTicks(canvas, barBounds, spec, style, orientation)`](@ref scibar::drawTicks) | Major tick marks and labels. Auto-generates ticks if `spec.ticks` is empty. |
+| [`drawSubTicks(canvas, barBounds, spec, style, orientation)`](@ref scibar::drawSubTicks) | Short, unlabeled sub-ticks between major ticks. |
+| [`drawLabel(canvas, bounds, text, style)`](@ref scibar::drawLabel) | Colorbar label text, centered horizontally in the given bounds. |
 
 ### Utilities
 
 | Function | Description |
 |---|---|
-| `fillCanvas(canvas, color)` | Fill the entire canvas with a solid background color (e.g., white). |
-| `writePPM(canvas, path)` | Save the canvas as a PPM file (zero dependencies). |
-| `unionRect(a, b)` | Compute the bounding box enclosing two rectangles. |
+| [`fillCanvas(canvas, color)`](@ref scibar::fillCanvas) | Fill the entire canvas with a solid background color (e.g., white). |
+| [`writePPM(canvas, path)`](@ref scibar::writePPM) | Save the canvas as a PPM file (zero dependencies). |
+| [`unionRect(a, b)`](@ref scibar::unionRect) | Compute the bounding box enclosing two rectangles. |
 
 ---
 
@@ -74,13 +74,13 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | Function | Description |
 |---|---|
-| `exportLegendToSVG(spec, style, width, height, orientation)` | Auto-layout: returns a complete SVG document with label, colorbar, ticks, and sub-ticks. Mirrors `drawLegend()` for vector output. |
+| [`exportLegendToSVG(spec, style, width, height, orientation)`](@ref scibar::exportLegendToSVG) | Auto-layout: returns a complete SVG document with label, colorbar, ticks, and sub-ticks. Mirrors `drawLegend()` for vector output. |
 
 ### Low-level
 
 | Function | Description |
 |---|---|
-| `exportToSVG(spec, style, options, orientation)` | Full-control SVG export. Use `SVGOptions` to set exact bounds, and optionally embed a raster image (`mainImageHref`) alongside the vector colorbar for hybrid figures. |
+| [`exportToSVG(spec, style, options, orientation)`](@ref scibar::exportToSVG) | Full-control SVG export. Use `SVGOptions` to set exact bounds, and optionally embed a raster image (`mainImageHref`) alongside the vector colorbar for hybrid figures. |
 
 ---
 
@@ -88,7 +88,7 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | Function | Description |
 |---|---|
-| `computeLegendLayout(width, height, spec, style, orientation)` | Pre-compute the layout that both `drawLegend()` and `exportLegendToSVG()` use internally. Call this once, then pass the resulting `LegendLayout` bounds to the low-level raster and vector functions for **identical placement** across PNG and SVG output. |
+| [`computeLegendLayout(width, height, spec, style, orientation)`](@ref scibar::computeLegendLayout) | Pre-compute the layout that both `drawLegend()` and `exportLegendToSVG()` use internally. Call this once, then pass the resulting `LegendLayout` bounds to the low-level raster and vector functions for **identical placement** across PNG and SVG output. |
 
 ---
 
@@ -96,8 +96,8 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | Function | Description |
 |---|---|
-| `generateTicks(scale, targetCount, precision)` | Auto-generate "nice" major tick values and labels from a data scale. |
-| `generateSubTicks(scale, majorTicks, subTicksPerInterval)` | Generate evenly-spaced sub-ticks between the given major ticks. |
+| [`generateTicks(scale, targetCount, precision)`](@ref scibar::generateTicks) | Auto-generate "nice" major tick values and labels from a data scale. |
+| [`generateSubTicks(scale, majorTicks, subTicksPerInterval)`](@ref scibar::generateSubTicks) | Generate evenly-spaced sub-ticks between the given major ticks. |
 
 ---
 
@@ -105,11 +105,11 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | Function | Description |
 |---|---|
-| `loadFont(path, size)` | Load a custom `.ttf` font. If not called, the embedded Inter font is used. |
-| `measureText(text, font)` | Measure the pixel dimensions of a text string. |
-| `fontMetrics(font)` | Get ascender, descender, and line height for precise vertical alignment. |
-| `textAdvance(font, text, upToIndex)` | Measure horizontal advance up to a character index (for cursor/selection placement). |
-| `codepointAdvance(font, left, right)` | Kerning advance between two Unicode codepoints. |
+| [`loadFont(path, size)`](@ref scibar::loadFont) | Load a custom `.ttf` font. If not called, the embedded Inter font is used. |
+| [`measureText(text, font)`](@ref scibar::measureText) | Measure the pixel dimensions of a text string. |
+| [`fontMetrics(font)`](@ref scibar::fontMetrics) | Get ascender, descender, and line height for precise vertical alignment. |
+| [`textAdvance(font, text, upToIndex)`](@ref scibar::textAdvance) | Measure horizontal advance up to a character index (for cursor/selection placement). |
+| [`codepointAdvance(font, left, right)`](@ref scibar::codepointAdvance) | Kerning advance between two Unicode codepoints. |
 
 ---
 
@@ -117,12 +117,12 @@ Use these for publication-quality vector graphics and hybrid figures
 
 | You want… | Use… |
 |---|---|
-| Save colorbar to disk, zero boilerplate | `exportColorbar(opts, "file.png")` |
-| Quick raster colorbar into your buffer | `drawLegend(canvas, spec, style)` |
-| Quick SVG colorbar into a string | `exportLegendToSVG(spec, style, w, h)` |
-| Raster with pixel-level control | `drawColorBar()` + `drawTicks()` + `drawSubTicks()` + `drawLabel()` |
-| SVG with exact bounds or hybrid image | `exportToSVG(spec, style, options)` |
-| Identical layout in both PNG and SVG | `computeLegendLayout()` → pass bounds to both backends |
+| Save colorbar to disk, zero boilerplate | [`exportColorbar(opts, "file.png")`](@ref scibar::exportColorbar) |
+| Quick raster colorbar into your buffer | [`drawLegend(canvas, spec, style)`](@ref scibar::drawLegend) |
+| Quick SVG colorbar into a string | [`exportLegendToSVG(spec, style, w, h)`](@ref scibar::exportLegendToSVG) |
+| Raster with pixel-level control | [`drawColorBar()`](@ref scibar::drawColorBar) + [`drawTicks()`](@ref scibar::drawTicks) + [`drawSubTicks()`](@ref scibar::drawSubTicks) + [`drawLabel()`](@ref scibar::drawLabel) |
+| SVG with exact bounds or hybrid image | [`exportToSVG(spec, style, options)`](@ref scibar::exportToSVG) |
+| Identical layout in both PNG and SVG | [`computeLegendLayout()`](@ref scibar::computeLegendLayout) → pass bounds to both backends |
 
 **Rule of thumb:** Start with `exportColorbar()` for quick results. Drop to
 `drawLegend()` / `exportLegendToSVG()` when you need to manage the canvas
