@@ -197,6 +197,60 @@ FontMetrics fm = scibar::fontMetrics(font);
 
 ## SVG Export
 
+### Q: How do I make SVG text render identically everywhere, even if the font isn't installed?
+
+By default the SVG references a CSS `font-family` (e.g. `"Inter, sans-serif"`),
+and the viewer renders text with whatever font it resolves on the *system*.
+If that font isn't installed, the viewer falls back to another font with
+different metrics, so text can shift or look different from the raster (PNG)
+output.
+
+To guarantee identical text in any viewer that supports embedded fonts, set
+`Style::embedFontInSvg = true`:
+
+```cpp
+Style style = Style::defaultLight();
+style.embedFontInSvg = true;   // embed the font into the SVG
+```
+
+This embeds the **exact same TTF bytes** the raster backend renders with
+(`style.font`, or the embedded Inter by default) as a base64 `@font-face` data
+URI. Because raster and SVG then use the *same* font file, text metrics match
+exactly — no more "a pixel off" from font substitution. The family name is
+auto-derived from the font's TTF `name` table, so you don't need to know it
+(see `fontFamilyName()`); `Style::fontFamily` is ignored while embedding.
+
+**Benefits**
+
+- Pixel-identical text between raster and SVG in `@font-face`-capable viewers
+  (Chrome, Firefox, Safari, Inkscape, most desktop SVG tools).
+- Works even when the font is not installed on the viewer's system — ideal for
+  sharing figures with non-technical collaborators.
+
+**Limitations (read before enabling)**
+
+- **Size**: embedding adds roughly 450 KB per SVG (a ~340 KB TTF becomes
+  ~450 KB of base64). A 20 KB figure becomes ~470 KB. Fine for offline
+  publication files; heavy if you inline many SVGs in a web page.
+- **librsvg / GNOME image viewer**: librsvg does **not** support `@font-face`
+  (it's on librsvg's not-implemented list). It will silently ignore the
+  embedded font and fall back to a system font. The baked-offset tick-label
+  layout keeps labels aligned even then, but you won't get the embedded font's
+  exact metrics. Embedding therefore does *not* fix librsvg — only browsers and
+  Inkscape.
+- **Font license**: the embedded font must be redistributable. scibar's built-in
+  Inter and the example Libertinus Serif are SIL OFL (embedding allowed). If you
+  load a custom font with a restrictive license, embedding is your
+  responsibility.
+- **Security**: a few viewers/email clients block data-URI fonts. Rare, but if a
+  figure must render in such a viewer, keep embedding off.
+
+**When to use it**: when you must guarantee the text looks exactly right
+regardless of the viewer's installed fonts and you can afford the size
+increase. Otherwise the default (CSS `font-family` + baked-offset layout) is
+the right choice — it renders correctly in browsers, librsvg, and Inkscape as
+long as a metric-compatible font is available.
+
 ### Q: My SVG shows faint lines between color segments. What's wrong?
 
 This is a known anti-aliasing artifact in SVG renderers.  For continuous

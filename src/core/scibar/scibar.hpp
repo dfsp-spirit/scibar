@@ -511,6 +511,23 @@ struct Style {
     std::string fontFamily = ""; ///< CSS font-family for SVG output (raster uses style.font instead).
                                   ///< Empty = auto-derive from style.font's TTF name table (see fontFamilyName()).
 
+    /// @brief Embed the raster font into the SVG as a base64 @font-face.
+    ///
+    /// When enabled, the SVG embeds the exact TTF bytes used by the raster
+    /// backend (style.font), so text renders pixel-identically in any viewer
+    /// that supports @font-face (browsers, Inkscape, ...) regardless of which
+    /// fonts are installed on the system. The family name is auto-derived from
+    /// the font's TTF name table; Style::fontFamily is ignored while embedding.
+    ///
+    /// @note Trade-offs:
+    /// - Adds roughly 450 KB per SVG (Inter-Regular.ttf is ~340 KB, base64 ~4/3).
+    /// - @font-face is NOT supported by librsvg (GNOME image viewer), which
+    ///   will ignore the embedded font and fall back to a system font — the
+    ///   baked-offset layout keeps tick labels aligned even then.
+    /// - The embedded font must be redistributable (e.g., SIL OFL). Users are
+    ///   responsible for the license of custom fonts.
+    bool embedFontInSvg = false; ///< Embed style.font into the SVG (default: off).
+
     float tickLength         = 5.0f;  ///< Major tick mark length in pixels
     float subTickLength      = 3.0f;  ///< Sub-tick mark length in pixels (shorter than major)
     int   tickPrecision      = 6;     ///< Significant digits for auto-generated tick labels (printf %.*g)
@@ -36135,6 +36152,29 @@ std::string fontFamilyName(const Font& font) {
     return "";
 }
 
+// =========================================================================
+// Base64 (for optional SVG font embedding)
+// =========================================================================
+
+/// @internal Base64-encode arbitrary bytes (RFC 4648, standard alphabet).
+static std::string base64Encode(const void* data, size_t len) {
+    static const char kTable[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const unsigned char* src = static_cast<const unsigned char*>(data);
+    std::string out;
+    out.reserve(((len + 2) / 3) * 4);
+    for (size_t i = 0; i < len; i += 3) {
+        unsigned v = static_cast<unsigned>(src[i]) << 16;
+        if (i + 1 < len) v |= static_cast<unsigned>(src[i+1]) << 8;
+        if (i + 2 < len) v |= static_cast<unsigned>(src[i+2]);
+        out.push_back(kTable[(v >> 18) & 0x3F]);
+        out.push_back(kTable[(v >> 12) & 0x3F]);
+        out.push_back((i + 1 < len) ? kTable[(v >> 6) & 0x3F] : '=');
+        out.push_back((i + 2 < len) ? kTable[v & 0x3F] : '=');
+    }
+    return out;
+}
+
 std::array<float, 2> measureText(const std::string& text, const Font& font) {
     const auto* info = getStbInfo(font);
     float scale = fontScale(font);
@@ -36908,12 +36948,53 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
     const Rect& cb = options.colorbarBounds;
     bool isVertical = (orientation == Orientation::Vertical);
 
+    // Resolve the CSS font-family used by all <text> elements. If the user did
+    // not set Style::fontFamily explicitly, derive it from the raster font's
+    // TTF name table so a custom loadFont() family is used in SVG viewers too
+    // (falls back to "sans-serif" if the name cannot be derived). When embedding
+    // the font, reference exactly the family declared in @font-face (no system
+    // fallback chain) so the embedded font is actually used.
+    std::string svgFontFamily;
+    if (style.embedFontInSvg) {
+        std::string derived = fontFamilyName(style.font);
+        svgFontFamily = derived.empty() ? std::string("scibar-embedded")
+                                        : derived;
+    } else if (!style.fontFamily.empty()) {
+        svgFontFamily = style.fontFamily;
+    } else {
+        std::string derived = fontFamilyName(style.font);
+        svgFontFamily = derived.empty() ? std::string("sans-serif")
+                                        : derived + ", sans-serif";
+    }
+
     std::ostringstream svg;
     svg << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     svg << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
         << "width=\"" << options.totalWidth << "\" "
         << "height=\"" << options.totalHeight << "\" "
         << "viewBox=\"0 0 " << options.totalWidth << " " << options.totalHeight << "\">\n";
+
+    // Optional: embed the raster font so text renders identically in any
+    // @font-face-capable viewer (browsers, Inkscape) regardless of installed
+    // system fonts. Not supported by librsvg (GNOME image viewer).
+    if (style.embedFontInSvg) {
+        const FontEntry* entry = getFontEntry(style.font);
+        if (entry && !entry->ttfData.empty() && !svgFontFamily.empty()) {
+            bool isCFF = entry->ttfData.size() >= 4 &&
+                         entry->ttfData[0] == 'O' && entry->ttfData[1] == 'T' &&
+                         entry->ttfData[2] == 'T' && entry->ttfData[3] == 'O';
+            const char* mime   = isCFF ? "font/otf" : "font/ttf";
+            const char* format = isCFF ? "opentype" : "truetype";
+            std::string b64 = base64Encode(entry->ttfData.data(), entry->ttfData.size());
+            svg << "  <style>\n"
+                << "    @font-face {\n"
+                << "      font-family: \"" << svgFontFamily << "\";\n"
+                << "      src: url(data:" << mime << ";base64," << b64
+                << ") format(\"" << format << "\");\n"
+                << "    }\n"
+                << "  </style>\n";
+        }
+    }
 
     // Embedded raster image (hybrid figure)
     if (!options.mainImageHref.empty()) {
@@ -37019,19 +37100,6 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
         (fm.ascender - fm.descender) * 0.5f; // offset to center on the tick (vertical bars)
     const float tickLabelAscender =
         fm.ascender;                          // offset so the text top sits at the anchor (horizontal bars)
-
-    // Resolve the CSS font-family for all <text> elements. If the user did not
-    // set Style::fontFamily explicitly, derive it from the raster font's TTF
-    // name table so a custom loadFont() family is used in SVG viewers too
-    // (falls back to "sans-serif" if the name cannot be derived).
-    std::string svgFontFamily;
-    if (!style.fontFamily.empty()) {
-        svgFontFamily = style.fontFamily;
-    } else {
-        std::string derived = fontFamilyName(style.font);
-        svgFontFamily = derived.empty() ? std::string("sans-serif")
-                                        : derived + ", sans-serif";
-    }
 
     if (range > 0.0f) {
         for (const auto& tick : *ticks) {

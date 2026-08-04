@@ -251,6 +251,66 @@ static int findBarRightX(const scibar::Canvas& canvas, int rowY, int bgThreshold
     return -1;
 }
 
+// =========================================================================
+// Base64 / font-embedding helpers
+// =========================================================================
+
+/// Decode a base64 string (RFC 4648, standard alphabet, may contain '=' padding).
+static std::vector<uint8_t> base64Decode(const std::string& b64) {
+    static const int8_t kRev[256] = {
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,-1,-1,63,52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-1,-1,-1,
+        -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,
+        -1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+    };
+    std::vector<uint8_t> out;
+    out.reserve((b64.size() / 4) * 3);
+    uint32_t acc = 0;
+    int nbits = 0;
+    for (char c : b64) {
+        if (c == '=' || c == '\n' || c == '\r') continue;
+        int v = kRev[static_cast<unsigned char>(c)];
+        if (v < 0) continue;
+        acc = (acc << 6) | static_cast<uint32_t>(v);
+        nbits += 6;
+        if (nbits >= 8) {
+            nbits -= 8;
+            out.push_back(static_cast<uint8_t>((acc >> nbits) & 0xFF));
+        }
+    }
+    return out;
+}
+
+/// Extract the base64 payload from a data URI of the form
+/// `src: url(data:<mime>;base64,<payload>) format(...)`.
+static std::string extractBase64Payload(const std::string& svg, const std::string& mime) {
+    std::string needle = "url(data:" + mime + ";base64,";
+    size_t start = svg.find(needle);
+    if (start == std::string::npos) return "";
+    start += needle.size();
+    size_t end = svg.find(')', start);
+    if (end == std::string::npos) return "";
+    return svg.substr(start, end - start);
+}
+
+/// Locate the bundled Libertinus Serif TTF relative to common working dirs
+/// (repo root, cpp_tests, cpp_tests/build). Returns "" if not found.
+static std::string findLibertinusFont() {
+    const char* candidates[] = {
+        "examples/custom_font/LibertinusSerif-Regular.ttf",
+        "../examples/custom_font/LibertinusSerif-Regular.ttf",
+        "../../examples/custom_font/LibertinusSerif-Regular.ttf",
+    };
+    for (const char* c : candidates) {
+        if (std::filesystem::exists(c)) return c;
+    }
+    return "";
+}
+
 TEST_CASE("Color fromHex", "[data]") {
     auto c = scibar::Color::fromHex(0x12345678);
     REQUIRE(c.r == 0x12);
@@ -372,6 +432,141 @@ TEST_CASE("codepointAdvance", "[font]") {
 
     float adv = scibar::codepointAdvance(font, 'A', 'V');
     REQUIRE(adv > 0.0f);
+}
+
+TEST_CASE("fontFamilyName embedded Inter", "[font]") {
+    scibar::Font font;  // embedded Inter (handle == nullptr)
+    REQUIRE(scibar::fontFamilyName(font) == "Inter");
+}
+
+TEST_CASE("fontFamilyName custom font (Libertinus)", "[font]") {
+    std::string path = findLibertinusFont();
+    REQUIRE_FALSE(path.empty());  // the bundled font must be present in the repo
+
+    scibar::Font font = scibar::loadFont(path.c_str(), 18.0f);
+    REQUIRE(scibar::fontFamilyName(font) == "Libertinus Serif");
+}
+
+// =========================================================================
+// SVG font embedding
+// =========================================================================
+
+namespace {
+// Shared fixture: a vertical linear colorbar with a title, ready for exportToSVG.
+struct EmbedFixture {
+    std::vector<scibar::Color> cmap = scibar::util::viridis();
+    scibar::Spec spec;
+    scibar::SVGOptions opts;
+
+    EmbedFixture() {
+        spec.scale.min = 0.0f;
+        spec.scale.max = 100.0f;
+        spec.label = "Value";
+        spec.colormap = scibar::ColorMapView(cmap);
+
+        opts.totalWidth = 200;
+        opts.totalHeight = 500;
+        opts.colorbarBounds = {80, 45, 30, 400};
+        opts.labelBounds = {0, 16, 200, 14};
+    }
+
+    std::string render(const scibar::Style& style) {
+        return scibar::exportToSVG(spec, style, opts, scibar::Orientation::Vertical);
+    }
+};
+} // namespace
+
+TEST_CASE("embedFontInSvg disabled by default", "[svg][font]") {
+    EmbedFixture fx;
+
+    std::string svg = fx.render(scibar::Style::defaultLight());
+
+    REQUIRE_FALSE(svg.empty());
+    // No @font-face by default
+    REQUIRE(svg.find("@font-face") == std::string::npos);
+    // Auto-derived family with sans-serif fallback is used in text elements
+    REQUIRE(svg.find("font-family=\"Inter, sans-serif\"") != std::string::npos);
+    // No data: URI font payload
+    REQUIRE(svg.find("data:font/") == std::string::npos);
+}
+
+TEST_CASE("embedFontInSvg embeds the font", "[svg][font]") {
+    EmbedFixture fx;
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.embedFontInSvg = true;
+
+    std::string svg = fx.render(style);
+
+    // @font-face block present, declaring the derived family "Inter"
+    REQUIRE(svg.find("@font-face") != std::string::npos);
+    REQUIRE(svg.find("font-family: \"Inter\"") != std::string::npos);
+    // TrueType mime + base64 payload
+    REQUIRE(svg.find("data:font/ttf;base64,") != std::string::npos);
+    REQUIRE(svg.find("format(\"truetype\")") != std::string::npos);
+    // Text elements reference the same (embedded) family
+    REQUIRE(svg.find("font-family=\"Inter\"") != std::string::npos);
+    // No system fallback chain when embedding
+    REQUIRE(svg.find("font-family=\"Inter, sans-serif\"") == std::string::npos);
+
+    // The base64 payload must decode to a valid TrueType font
+    std::string payload = extractBase64Payload(svg, "font/ttf");
+    REQUIRE_FALSE(payload.empty());
+    std::vector<uint8_t> decoded = base64Decode(payload);
+    REQUIRE(decoded.size() > 100000u);  // a full font, not a stub
+    // TrueType sfnt signature: 0x00 0x01 0x00 0x00
+    REQUIRE(decoded.size() >= 4);
+    REQUIRE(decoded[0] == 0x00);
+    REQUIRE(decoded[1] == 0x01);
+    REQUIRE(decoded[2] == 0x00);
+    REQUIRE(decoded[3] == 0x00);
+
+    // Normal content is still present alongside the embedded font
+    REQUIRE(svg.find("linearGradient") != std::string::npos);
+    REQUIRE(svg.find("</svg>") != std::string::npos);
+}
+
+TEST_CASE("embedFontInSvg round-trips custom font bytes", "[svg][font]") {
+    std::string path = findLibertinusFont();
+    REQUIRE_FALSE(path.empty());
+
+    // Read the on-disk font bytes to compare against the embedded payload.
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE(in.good());
+    std::vector<uint8_t> onDisk((std::istreambuf_iterator<char>(in)),
+                                std::istreambuf_iterator<char>());
+    REQUIRE_FALSE(onDisk.empty());
+
+    EmbedFixture fx;
+    scibar::Style style = scibar::Style::defaultLight();
+    style.font = scibar::loadFont(path.c_str(), 18.0f);
+    style.embedFontInSvg = true;
+
+    std::string svg = fx.render(style);
+
+    // Custom font derived family is used and embedded
+    REQUIRE(svg.find("@font-face") != std::string::npos);
+    REQUIRE(svg.find("font-family: \"Libertinus Serif\"") != std::string::npos);
+    REQUIRE(svg.find("font-family=\"Libertinus Serif\"") != std::string::npos);
+
+    // The embedded payload must byte-match the original TTF file exactly.
+    std::string payload = extractBase64Payload(svg, "font/ttf");
+    REQUIRE_FALSE(payload.empty());
+    std::vector<uint8_t> decoded = base64Decode(payload);
+    REQUIRE(decoded == onDisk);
+}
+
+TEST_CASE("embedFontInSvg increases SVG size", "[svg][font]") {
+    EmbedFixture fx;
+
+    std::string plain = fx.render(scibar::Style::defaultLight());
+
+    scibar::Style style = scibar::Style::defaultLight();
+    style.embedFontInSvg = true;
+    std::string embedded = fx.render(style);
+
+    // Embedding a ~400 KB TTF as base64 must substantially grow the SVG.
+    REQUIRE(embedded.size() > plain.size() + 100000u);
 }
 
 TEST_CASE("generateTicks linear", "[ticks]") {
@@ -2025,17 +2220,23 @@ TEST_CASE("raster-vs-vector: low-level vertical placement", "[raster-vs-vector][
     }
     CHECK(svgTickLabelsY.size() >= 3);
 
-    // Verify tick label Y positions match generated tick values
+    // Verify tick label Y positions match generated tick values. SVG tick
+    // labels are vertically CENTERED on their tick: the <text> y attribute is
+    // the alphabetic baseline, which sits halfTextHeight BELOW the tick.
     auto generatedTicks = scibar::generateTicks(spec.scale, 5, style.tickPrecision);
     float range = spec.scale.max - spec.scale.min;
+    scibar::FontMetrics fm = scibar::fontMetrics(style.font);
+    float halfTextHeight = (fm.ascender - fm.descender) * 0.5f;
     INFO("Generated " << generatedTicks.size() << " major ticks");
     for (size_t i = 0; i < generatedTicks.size() && i < svgTickLabelsY.size(); ++i) {
         float fraction = (generatedTicks[i].value - spec.scale.min) / range;
-        float expectedY = static_cast<float>(barBounds.y + barBounds.height) -
-                          fraction * static_cast<float>(barBounds.height);
-        INFO("  tick " << generatedTicks[i].value << " → expectedY=" << expectedY
+        float tickY = static_cast<float>(barBounds.y + barBounds.height) -
+                      fraction * static_cast<float>(barBounds.height);
+        float expectedBaselineY = tickY + halfTextHeight;
+        INFO("  tick " << generatedTicks[i].value << " → tickY=" << tickY
+             << " expectedBaselineY=" << expectedBaselineY
              << " actualY=" << svgTickLabelsY[i]);
-        CHECK(svgTickLabelsY[i] == Catch::Approx(expectedY).margin(1.5f));
+        CHECK(svgTickLabelsY[i] == Catch::Approx(expectedBaselineY).margin(1.5f));
     }
 }
 
