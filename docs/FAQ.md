@@ -195,6 +195,57 @@ FontMetrics fm = scibar::fontMetrics(font);
 // fm.ascender, fm.descender, fm.lineHeight are all in pixels
 ```
 
+### Q: Can I use superscript or subscript text, like "m²" or "H₂O", in my labels?
+
+Yes. Put the Unicode superscript/subscript character directly in the label
+string. scibar reads the string as UTF-8, decodes each character to its
+Unicode codepoint, and looks that codepoint up in the font — no markup,
+escaping, or extra API calls needed:
+
+```cpp
+Spec spec;
+spec.label = "Area (m²)";   // ² = U+00B2, a real superscript glyph
+// spec.label = "H₂O";      // ₂ = U+2082, subscript two
+```
+
+**Why it works.** Superscript/subscript exist in fonts in two independent
+ways, and scibar relies on the first:
+
+1. **Unicode codepoints** — dedicated characters like `²` (U+00B2),
+   `⁰`–`⁹` (U+2070–2079), `₀`–`₉` (U+2080–2089), `⁻`/`₋` (U+207B/U+208B).
+   Whether a font can render them is purely a *coverage* question: is the
+   codepoint in the font's `cmap` table? The embedded Inter font covers all
+   of these, so they render directly in both the raster (stb_truetype) and
+   SVG backends.
+
+2. **OpenType features** — the `sups`/`subs`/`sinf` features swap a normal
+   glyph for a small raised/lowered variant. These are *layout* features
+   applied by a shaping engine (HarfBuzz, CoreText, ...), **not** by scibar:
+   the raster backend (stb_truetype) does no text shaping, and SVG viewers
+   don't enable `sups`/`subs` by default either. scibar therefore never uses
+   them — use Unicode codepoints instead.
+
+**Limitations**
+
+- **Only characters that have a Unicode superscript/subscript codepoint
+  work.** Digits and a few symbols are well covered (`² ³ ¹ ⁰⁴⁵⁶⁷⁸⁹ ⁺⁻⁼⁽⁾`
+  and `₀–₉ ₊₋₌₍₎`), but most letters have no dedicated codepoint — there is
+  no superscript "y", so `x^y` cannot be expressed this way. Arbitrary
+  superscript runs need a math renderer.
+- **The glyph must exist in the loaded font.** The embedded Inter covers the
+  common ones, but a custom font loaded via `loadFont()` may not. In raster
+  a missing glyph renders as a blank/tofu box; in SVG the viewer falls back
+  to another font (metrics may differ slightly).
+- **You get the font's designed glyph, not a scaled/shifted one.** Size and
+  vertical position are fixed by the font's design; scibar cannot shrink or
+  raise arbitrary text.
+- **SVG depends on the viewer having a font that contains the character**
+  (Inter or a fallback). Use `Style::embedFontInSvg = true` to guarantee
+  rendering when the font isn't installed — see the SVG Export section.
+- **This is not LaTeX.** For real math (Σ, stacked fractions, stretchy
+  brackets) use a dedicated math font/renderer; scibar is a colorbar
+  library, not a math typesetter.
+
 ## SVG Export
 
 ### Q: How do I make SVG text render identically everywhere, even if the font isn't installed?

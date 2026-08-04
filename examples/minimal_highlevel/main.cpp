@@ -19,7 +19,7 @@ int main() {
     auto cmap = util::viridis();   // store locally — ColorMapView is non-owning
     Spec spec;
     spec.scale    = Scale{ScaleType::Linear, 0.0f, 100.0f};
-    spec.label    = "Temperature (°C)";
+    spec.label    = "Area (m²)";  // ² = U+00B2, a Unicode superscript glyph
     spec.colormap = cmap;
 
     // Render with the high-level API — handles title, colorbar, ticks, sub-ticks automatically
