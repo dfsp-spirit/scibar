@@ -49,9 +49,9 @@ Rather than forcing a full layout framework on you, we offer three API levels:
 ## Documentation
 
 - [API Reference](https://dfsp-spirit.github.io/scibar/) — Doxygen-generated API docs
-- [API Overview](docs/API_OVERVIEW.md) — high-level vs low-level, raster vs vector function reference
-- [Getting Started Guide](docs/GETTING_STARTED.md) — quick start and core concepts
-- [FAQ](docs/FAQ.md) — common questions about colormap direction, ticks, layout, and more
+- [API Overview](https://dfsp-spirit.github.io/scibar/api_overview.html) — high-level vs low-level, raster vs vector function reference
+- [Getting Started Guide](https://dfsp-spirit.github.io/scibar/getting_started.html) — quick start and core concepts
+- [FAQ](https://dfsp-spirit.github.io/scibar/faq.html) — common questions about colormap direction, ticks, layout, and more
 
 
 ## Quick Start
