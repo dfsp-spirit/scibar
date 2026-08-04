@@ -65,9 +65,9 @@
 // Version
 // =========================================================================
 
-#define SCIBAR_VERSION        "0.1.0"
+#define SCIBAR_VERSION        "0.2.0"
 #define SCIBAR_VERSION_MAJOR  0
-#define SCIBAR_VERSION_MINOR  1
+#define SCIBAR_VERSION_MINOR  2
 #define SCIBAR_VERSION_PATCH  0
 
 #include <string>
@@ -511,17 +511,17 @@ struct Style {
     std::string fontFamily = ""; ///< CSS font-family for SVG output (raster uses style.font instead).
                                   ///< Empty = auto-derive from style.font's TTF name table (see fontFamilyName()).
 
-    /// @brief Embed the raster font into the SVG as a base64 @font-face.
+    /// @brief Embed the raster font into the SVG as a base64 `@font-face`.
     ///
     /// When enabled, the SVG embeds the exact TTF bytes used by the raster
     /// backend (style.font), so text renders pixel-identically in any viewer
-    /// that supports @font-face (browsers, Inkscape, ...) regardless of which
+    /// that supports `@font-face` (browsers, Inkscape, ...) regardless of which
     /// fonts are installed on the system. The family name is auto-derived from
     /// the font's TTF name table; Style::fontFamily is ignored while embedding.
     ///
     /// @note Trade-offs:
     /// - Adds roughly 450 KB per SVG (Inter-Regular.ttf is ~340 KB, base64 ~4/3).
-    /// - @font-face is NOT supported by librsvg (GNOME image viewer), which
+    /// - `@font-face` is NOT supported by librsvg (GNOME image viewer), which
     ///   will ignore the embedded font and fall back to a system font — the
     ///   baked-offset layout keeps tick labels aligned even then.
     /// - The embedded font must be redistributable (e.g., SIL OFL). Users are
@@ -790,7 +790,7 @@ struct ExportOpts {
     /// For long labels, increase `canvasW` or `canvasH` to provide more space.
     std::string label;
 
-    /// @brief Colormap lookup table — **non-owning view.**
+    /// @brief Colormap lookup table — a non-owning view.
     ///
     /// You **must** keep the backing `std::vector<Color>` alive until
     /// `exportColorbar()` returns. The rvalue constructor is deleted to

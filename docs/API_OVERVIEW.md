@@ -43,7 +43,7 @@ real-time overlays/HUDs).
 
 | Function | Description |
 |---|---|
-| `drawLegend(canvas, spec, style)` | Auto-layout: renders label, colorbar, major ticks, and sub-ticks in a single call. The colorbar fills the canvas proportionally (see [Choosing a canvas size](#choosing-a-canvas-size)). For horizontal bars, pass `Orientation::Horizontal`. |
+| `drawLegend(canvas, spec, style)` | Auto-layout: renders label, colorbar, major ticks, and sub-ticks in a single call. The colorbar fills the canvas proportionally (see [Choosing a canvas size](@ref getting_started)). For horizontal bars, pass `Orientation::Horizontal`. |
 
 ### Low-level
 
