@@ -3,5 +3,14 @@ scibar Changes
 
 
 Current WIP
+------------
+- FIX: fix tick/colorbar border anti-aliasing mismatch in raster output
+- FIX: fix collision between colorbar label text and top-most tick label text in vertical layout (raster + vector)
+- CHG: center tick label text vertically on ticks, instead of previous behaviour that had the font baseline on the tick
+- CHG: Full consistency over different SVG rendering backends (rsvglib vs. chrome/firefix/inkscape) by not relying on dominant-baseline attribute, which is still missing support in rsvglib-based software
+- NEW: add new example tick_diagnostic
+
+
+Version 0.1.0 -- Initial Release
 --------------------------------
-* First published version still WIP
+* First published version
