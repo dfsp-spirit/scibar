@@ -2,6 +2,14 @@ scibar Changes
 ==============
 
 
+Current WIP
+------------
+- NEW: support setting background color in zero friction API exportColorbar via new field in ExportOpts
+- NEW: add TGA export option in raster pathway
+- NEW: add example with superscript, thanks to inter font capabilities
+- DOC: clarify UTF-8, math, superscript etc capabilities/support in FAQ
+
+
 Version 0.2.0 -- Pixel perfect alignment and custom fonts for SVG
 -------------------------------------------------------------------
 - FIX: fix tick/colorbar border anti-aliasing mismatch in raster output
