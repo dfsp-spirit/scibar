@@ -36721,9 +36721,9 @@ LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
     layout.orientation  = orientation;
 
     // Measure label for accurate sizing
+    FontMetrics fm = fontMetrics(style.font);
     float labelH = 0.0f;
     if (!spec.label.empty()) {
-        FontMetrics fm = fontMetrics(style.font);
         labelH = std::ceil(fm.lineHeight);
     }
 
@@ -36734,11 +36734,19 @@ LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
         int labelY = margin;
         layout.labelBounds = {0, labelY, canvasWidth, static_cast<int>(labelH)};
 
+        // Reserve vertical space above the bar for the top tick label.
+        // The top tick sits at the bar's top edge; with baseline (alphabetic)
+        // alignment its text ascends above the bar by the font ascender, which
+        // would otherwise collide with the title label above. (If tick labels
+        // are later switched to center alignment, replace `fm.ascender` with
+        // `(fm.ascender - fm.descender) * 0.5f` here.)
+        int topTickLabelOverhang = static_cast<int>(std::ceil(fm.ascender));
+
         // Bar: centered horizontally, filling most of the height
         int barWidth  = std::max(canvasWidth / 8, 30);
-        int barHeight = canvasHeight - labelY - static_cast<int>(labelH) - margin;
         int barX = (canvasWidth - barWidth) / 2;
-        int barY = labelY + static_cast<int>(labelH) + margin / 2;
+        int barY = labelY + static_cast<int>(labelH) + margin / 2 + topTickLabelOverhang;
+        int barHeight = canvasHeight - barY - margin / 2;
         layout.barBounds = {barX, barY, barWidth, barHeight};
     } else {
         // Horizontal: label above, bar below, both centered
