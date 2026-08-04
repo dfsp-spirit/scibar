@@ -134,7 +134,7 @@ into the `y` coordinates instead, so every conformant viewer — Chrome,
 Firefox, Inkscape, and librsvg (e.g. the Ubuntu Image Viewer) — places the
 text identically.
 
-If you need pixel-identical output across viewers, stick with raster (PPM/PNG).
+If you need pixel-identical output across viewers, stick with raster (PPM/PNG/TGA).
 
 **Converting to PDF?** The same caveats apply — the converter is just another
 SVG renderer. Inkscape CLI (`inkscape --export-filename=out.pdf in.svg`),
@@ -334,14 +334,40 @@ bilinear blurring of scientific data.
 
 Yes — out of the box. scibar vendors `stb_image_write.h` (public domain) and
 compiles it with `STB_IMAGE_WRITE_STATIC` (internal linkage) so it
-never conflicts with your own use of stb libraries.  PNG, PPM, and SVG all
+never conflicts with your own use of stb libraries.  PNG, PPM, TGA, and SVG all
 work with zero configuration:
 
 ```cpp
 exportColorbar(opts, "colorbar.png");  // PNG  (stb_image_write)
 exportColorbar(opts, "colorbar.ppm");  // PPM  (zero-dependency plaintext)
+exportColorbar(opts, "colorbar.tga");  // TGA  (custom, uncompressed 32-bit RGBA)
 exportColorbar(opts, "colorbar.svg");  // SVG  (zero-dependency vector)
 ```
+
+### Q: How do I write a TGA with 24-bit RGB, or with a transparent background?
+
+`exportColorbar()` always fills an opaque white background and writes 32-bit
+RGBA TGA. For full control (24-bit RGB for print, or preserving a transparent
+background for slides/overlays), use the lower-level path with `writeTGA()`:
+
+```cpp
+Canvas canvas{buf.data(), W, H};
+
+// Transparent background colorbar for slides:
+fillCanvas(canvas, Color{0, 0, 0, 0});
+drawLegend(canvas, spec, style);
+writeTGA(canvas, "overlay.tga");          // 32-bit RGBA, alpha preserved
+
+// Opaque, 24-bit RGB for a print/journal submission:
+fillCanvas(canvas, Color{255, 255, 255, 255});
+drawLegend(canvas, spec, style);
+writeTGA(canvas, "print.tga", true);      // 24-bit RGB (alpha dropped)
+```
+
+`writeTGA()` is a custom zero-dependency writer (no stb, no libpng): it emits
+raw, uncompressed pixel values with no gamma or color-space metadata — useful
+when a journal's print pipeline must receive the exact pixels you rendered.
+It works even when `SCIBAR_NO_PNG` is defined.
 
 ### Q: How do I disable scibar's built-in PNG support?
 
@@ -356,7 +382,7 @@ Define `SCIBAR_NO_PNG` **before** including scibar.hpp:
 **Consequences:**
 
 - `exportColorbar(opts, "file.png")` returns `false` — PNG output is not available.
-- PPM and SVG output continue to work normally.
+- PPM, TGA, and SVG output continue to work normally.
 - scibar does **not** include `stb_image_write.h` at all — no stb code in your
   translation units, and no include-path dependency on scibar's vendored stb header.
 

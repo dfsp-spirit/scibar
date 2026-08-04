@@ -2716,3 +2716,194 @@ TEST_CASE("exportColorbar empty colormap asserts", "[export]") {
     scibar::ExportOpts opts;
     // colormap intentionally left empty — should trigger assertion in debug
 }
+
+// =========================================================================
+// TGA helpers
+// =========================================================================
+
+struct TgaImage {
+    int width = 0;
+    int height = 0;
+    int bpp = 0;
+    unsigned char descriptor = 0;
+    std::vector<uint32_t> pixels;  // packed 0xAABBGGRR, top-left origin
+};
+
+// Minimal TGA reader for tests — uncompressed true-color (type 2), 24/32-bit,
+// no color map, no image ID. Assumes top-left origin (0x20 descriptor bit).
+static bool readTGA(const std::string& path, TgaImage& img) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return false;
+
+    unsigned char hdr[18];
+    in.read(reinterpret_cast<char*>(hdr), 18);
+    if (!in) return false;
+    if (hdr[0] != 0) return false;                 // no image ID
+    if (hdr[1] != 0) return false;                 // no color map
+    if (hdr[2] != 2) return false;                 // uncompressed true-color
+
+    img.width  = hdr[12] | (hdr[13] << 8);
+    img.height = hdr[14] | (hdr[15] << 8);
+    img.bpp    = hdr[16];
+    img.descriptor = hdr[17];
+    if (img.bpp != 24 && img.bpp != 32) return false;
+    if ((img.descriptor & 0x20) == 0) return false;  // tests assume top-left
+
+    const int bytesPerPixel = img.bpp / 8;
+    img.pixels.assign(static_cast<size_t>(img.width) * img.height, 0u);
+
+    std::vector<unsigned char> row(static_cast<size_t>(img.width) * bytesPerPixel);
+    for (int y = 0; y < img.height; ++y) {
+        in.read(reinterpret_cast<char*>(row.data()),
+                static_cast<std::streamsize>(row.size()));
+        if (!in) return false;
+        size_t o = 0;
+        for (int x = 0; x < img.width; ++x) {
+            unsigned char b = row[o++];
+            unsigned char g = row[o++];
+            unsigned char r = row[o++];
+            unsigned char a = (bytesPerPixel == 4) ? row[o++] : 255;
+            img.pixels[static_cast<size_t>(y) * img.width + x] =
+                (static_cast<uint32_t>(a) << 24) |
+                (static_cast<uint32_t>(b) << 16) |
+                (static_cast<uint32_t>(g) << 8)  |
+                r;
+        }
+    }
+    return true;
+}
+
+// =========================================================================
+// writeTGA tests
+// =========================================================================
+
+TEST_CASE("writeTGA 32-bit roundtrip", "[tga][raster]") {
+    ensureOutputDir();
+
+    // 3x2 canvas with distinct pixels: pure R/G/B (BGR-swap check) plus a
+    // non-opaque alpha (alpha-preservation check).
+    const int W = 3, H = 2;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H);
+    scibar::Canvas canvas{buf.data(), W, H};
+    const uint32_t px[6] = {
+        0xFF0000FFu,  // red
+        0xFF00FF00u,  // green
+        0xFFFF0000u,  // blue
+        0xFFFFFFFFu,  // white
+        0x800000FFu,  // red, alpha 128
+        0xFF000000u,  // black
+    };
+    for (int i = 0; i < 6; ++i) buf[static_cast<size_t>(i)] = px[i];
+
+    std::string path = std::string(OUTPUT_DIR) + "/tga32_roundtrip.tga";
+    REQUIRE(scibar::writeTGA(canvas, path.c_str()));
+
+    // File size must be exactly 18-byte header + W*H*4.
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    REQUIRE(in.good());
+    REQUIRE(in.tellg() == 18 + W * H * 4);
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+    REQUIRE(img.width == W);
+    REQUIRE(img.height == H);
+    REQUIRE(img.bpp == 32);
+    REQUIRE((img.descriptor & 0x20) != 0);   // top-left origin
+    REQUIRE((img.descriptor & 0x0F) == 8);   // 8 alpha bits
+
+    // Every pixel must round-trip exactly (RGBA) — proves the BGR swap.
+    for (int i = 0; i < 6; ++i) {
+        REQUIRE(img.pixels[static_cast<size_t>(i)] == px[i]);
+    }
+}
+
+TEST_CASE("writeTGA 24-bit roundtrip", "[tga][raster]") {
+    ensureOutputDir();
+
+    const int W = 3, H = 2;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H);
+    scibar::Canvas canvas{buf.data(), W, H};
+    const uint32_t px[6] = {
+        0xFF0000FFu,  // red
+        0xFF00FF00u,  // green
+        0xFFFF0000u,  // blue
+        0xFFFFFFFFu,  // white
+        0x800000FFu,  // red, alpha 128 (alpha dropped in 24-bit)
+        0xFF000000u,  // black
+    };
+    for (int i = 0; i < 6; ++i) buf[static_cast<size_t>(i)] = px[i];
+
+    std::string path = std::string(OUTPUT_DIR) + "/tga24_roundtrip.tga";
+    REQUIRE(scibar::writeTGA(canvas, path.c_str(), true));
+
+    // File size must be exactly 18-byte header + W*H*3.
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    REQUIRE(in.good());
+    REQUIRE(in.tellg() == 18 + W * H * 3);
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+    REQUIRE(img.width == W);
+    REQUIRE(img.height == H);
+    REQUIRE(img.bpp == 24);
+    REQUIRE((img.descriptor & 0x20) != 0);   // top-left origin
+    REQUIRE((img.descriptor & 0x0F) == 0);   // no alpha bits
+
+    // RGB preserved; alpha forced opaque (24-bit has no alpha channel).
+    for (int i = 0; i < 6; ++i) {
+        REQUIRE((img.pixels[static_cast<size_t>(i)] & 0xFFFFFFu) ==
+                (px[i] & 0xFFFFFFu));
+        REQUIRE(((img.pixels[static_cast<size_t>(i)] >> 24) & 0xFFu) == 0xFFu);
+    }
+}
+
+TEST_CASE("writeTGA 32-bit preserves transparent background", "[tga][raster]") {
+    ensureOutputDir();
+
+    const int W = 4, H = 4;
+    std::vector<uint32_t> buf(static_cast<size_t>(W) * H);
+    scibar::Canvas canvas{buf.data(), W, H};
+    scibar::fillCanvas(canvas, scibar::Color{0, 0, 0, 0});  // transparent bg
+    buf[0] = 0xFF00AA00u;  // one opaque green pixel so the image isn't uniform
+
+    std::string path = std::string(OUTPUT_DIR) + "/tga32_transparent.tga";
+    REQUIRE(scibar::writeTGA(canvas, path.c_str()));
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+    REQUIRE(img.pixels[0] == 0xFF00AA00u);
+    // Every other pixel must stay fully transparent.
+    for (int i = 1; i < W * H; ++i) {
+        REQUIRE(((img.pixels[static_cast<size_t>(i)] >> 24) & 0xFFu) == 0u);
+    }
+}
+
+TEST_CASE("writeTGA unwritable path returns false", "[tga]") {
+    std::vector<uint32_t> buf(4);
+    scibar::Canvas canvas{buf.data(), 2, 2};
+    REQUIRE_FALSE(scibar::writeTGA(canvas, "/nonexistent_dir_xyz/out.tga"));
+}
+
+TEST_CASE("exportColorbar TGA output", "[export][tga]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+    opts.label    = "Test Label";
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_tga.tga";
+    bool ok = scibar::exportColorbar(opts, path.c_str());
+    REQUIRE(ok);
+
+    // Default vertical canvas is 200x500 → 18 + 200*500*4 bytes (32-bit).
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    REQUIRE(in.good());
+    REQUIRE(in.tellg() == 18 + 200 * 500 * 4);
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+    REQUIRE(img.width == 200);
+    REQUIRE(img.height == 500);
+    REQUIRE(img.bpp == 32);
+    REQUIRE((img.descriptor & 0x0F) == 8);   // alpha preserved
+}

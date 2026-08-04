@@ -14,7 +14,7 @@ scibar provides three API levels — **zero-friction** (one call to file),
 ## Zero-Friction API — one call to file
 
 Use when you just want a colorbar saved to disk with zero boilerplate.
-Format auto-detected from file extension (`.ppm`, `.png`, `.svg`).
+Format auto-detected from file extension (`.ppm`, `.png`, `.tga`, `.svg`).
 
 | Function | Description |
 |---|---|

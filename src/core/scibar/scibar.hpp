@@ -1419,6 +1419,44 @@ std::string exportLegendToSVG(const Spec& spec,
 /// @see Canvas, fillCanvas()
 bool writePPM(const Canvas& canvas, const char* path);
 
+/// @brief Write a Canvas as an uncompressed TGA (Truevision TARGA) file.
+///
+/// Custom zero-dependency writer (no stb, no libpng). TGA stores raw pixel
+/// values with no gamma or color-space metadata, making it a good fit for
+/// print/scientific workflows where the exact rendered pixels must be
+/// preserved verbatim (cf. the `exportColorbar` docs and FAQ).
+///
+/// Two output modes are supported:
+/// - **32-bit RGBA (default):** preserves the canvas alpha channel, so
+///   transparent-background colorbars (e.g., `fillCanvas(canvas,
+///   Color{0,0,0,0})`) stay transparent for slides/overlays.
+/// - **24-bit RGB (`use24bit=true`):** drops alpha (the caller should have
+///   an opaque canvas, e.g. filled with a solid background). Produces
+///   smaller files and matches typical print expectations.
+///
+/// No compression is applied (image type 2, uncompressed true-color). The
+/// top-left origin bit is set in the image descriptor, so the canvas is
+/// stored top-down in memory order (no vertical flip needed).
+///
+/// @par Example
+/// @code
+/// fillCanvas(canvas, Color{255, 255, 255, 255});
+/// drawLegend(canvas, spec, style);
+/// writeTGA(canvas, "colorbar.tga");            // 32-bit RGBA (default)
+/// writeTGA(canvas, "print.tga", true);          // 24-bit RGB (no alpha)
+/// @endcode
+///
+/// @param canvas   The rendered pixel buffer (packed `0xAABBGGRR`).
+/// @param path     Output file path (e.g., `"colorbar.tga"`).
+/// @param use24bit If `true`, write 24-bit RGB (alpha dropped); if `false`
+///                 (default), write 32-bit RGBA (alpha preserved).
+///
+/// @return `true` if the file was written successfully, `false` if the
+///         file could not be opened, or the canvas is invalid/empty.
+///
+/// @see Canvas, fillCanvas(), writePPM()
+bool writeTGA(const Canvas& canvas, const char* path, bool use24bit = false);
+
 /// @brief Zero-friction colorbar export — one struct, one call, any format.
 ///
 /// Renders a complete colorbar (gradient bar, ticks, sub-ticks, and label)
@@ -1429,7 +1467,13 @@ bool writePPM(const Canvas& canvas, const char* path);
 /// |---|---|---|---|
 /// | `.ppm` | PPM P3 (plain text) | Built-in | Zero dependencies, readable by ImageMagick/GIMP/feh |
 /// | `.png` | PNG (lossless) | stb_image_write (vendored) | Compact, production-ready |
+/// | `.tga` | TGA (uncompressed 32-bit RGBA) | Built-in (custom) | Raw pixels, no gamma/color metadata; print/slide friendly |
 /// | `.svg` | SVG (vector) | Built-in | Publication-quality vector graphics |
+///
+/// Note: `.tga` is always written as 32-bit RGBA here (the canvas is filled
+/// with an opaque background by default). For 24-bit RGB output, or to
+/// preserve a transparent background, use the lower-level `fillCanvas()` +
+/// `drawLegend()` + `writeTGA()` path directly.
 ///
 /// Canvas size auto-detects from `ExportOpts::orientation`: vertical defaults
 /// to 200×500, horizontal to 500×200. Override with `ExportOpts::canvasW`
@@ -1471,16 +1515,17 @@ bool writePPM(const Canvas& canvas, const char* path);
 ///
 /// @note To disable built-in PNG support (e.g., to use your own stb_image_write
 /// or reduce code size), `#define SCIBAR_NO_PNG` before including scibar.hpp.
-/// PPM and SVG output are unaffected. See the FAQ for details.
+/// PPM, TGA, and SVG output are unaffected. See the FAQ for details.
 ///
 /// @param opts  All settings — at minimum, set `opts.colormap`.
-/// @param path  Output file path. Extension must be `.ppm`, `.png`, or `.svg`.
+/// @param path  Output file path. Extension must be `.ppm`, `.png`, `.tga`,
+///              or `.svg`.
 ///
 /// @return `true` if the file was written successfully, `false` if the extension
 ///         is unrecognized, PNG is disabled via `SCIBAR_NO_PNG`, or the file
 ///         could not be opened.
 ///
-/// @see ExportOpts, drawLegend(), exportLegendToSVG(), writePPM()
+/// @see ExportOpts, drawLegend(), exportLegendToSVG(), writePPM(), writeTGA()
 bool exportColorbar(const ExportOpts& opts, const char* path);
 
 } // namespace scibar
@@ -37289,6 +37334,57 @@ bool writePPM(const Canvas& canvas, const char* path) {
 }
 
 // =========================================================================
+// writeTGA — custom uncompressed TGA writer (no dependencies)
+// =========================================================================
+
+bool writeTGA(const Canvas& canvas, const char* path, bool use24bit) {
+    assert(canvas.pixels && "Canvas pixels must not be null");
+    if (!canvas.pixels || canvas.width <= 0 || canvas.height <= 0) return false;
+
+    const int bytesPerPixel = use24bit ? 3 : 4;
+
+    std::ofstream out(path, std::ios::binary);
+    if (!out) return false;
+
+    // 18-byte TGA 2.0 header. Fields not set explicitly below are zero:
+    //   [0] ID length (0)          [1] color map type (0 = none)
+    //   [2] image type (2 = uncompressed true-color)
+    //   [3..7]  color map spec (all 0)       [8..11] x/y origin (0)
+    //   [12..13] width (LE)        [14..15] height (LE)
+    //   [16] pixel depth           [17] image descriptor
+    unsigned char header[18] = {};
+    header[2] = 2;                       // uncompressed true-color
+    header[12] = static_cast<unsigned char>(canvas.width & 0xFF);
+    header[13] = static_cast<unsigned char>((canvas.width >> 8) & 0xFF);
+    header[14] = static_cast<unsigned char>(canvas.height & 0xFF);
+    header[15] = static_cast<unsigned char>((canvas.height >> 8) & 0xFF);
+    header[16] = static_cast<unsigned char>(use24bit ? 24 : 32);
+    header[17] = 0x20;                   // top-left origin
+    if (!use24bit) header[17] |= 0x08;   // 8 attribute (alpha) bits for 32-bit
+
+    out.write(reinterpret_cast<const char*>(header), sizeof(header));
+    if (!out) return false;
+
+    // Pixel data: TGA stores BGR(A) order, our canvas is RGBA. Swap R/B.
+    std::vector<unsigned char> row(static_cast<size_t>(canvas.width) * bytesPerPixel);
+    for (int y = 0; y < canvas.height; ++y) {
+        size_t o = 0;
+        for (int x = 0; x < canvas.width; ++x) {
+            Color c = Color::fromPackedRGBA(
+                canvas.pixels[static_cast<size_t>(y) * canvas.width + x]);
+            row[o++] = c.b;                   // B
+            row[o++] = c.g;                   // G
+            row[o++] = c.r;                   // R
+            if (!use24bit) row[o++] = c.a;    // A (32-bit only)
+        }
+        out.write(reinterpret_cast<const char*>(row.data()),
+                  static_cast<std::streamsize>(row.size()));
+        if (!out) return false;
+    }
+    return true;
+}
+
+// =========================================================================
 // PNG helper (implementation in stb_image_write included above)
 // =========================================================================
 
@@ -37319,7 +37415,8 @@ bool exportColorbar(const ExportOpts& opts, const char* path) {
     bool isSvg = (ext == ".svg");
     bool isPng = (ext == ".png");
     bool isPpm = (ext == ".ppm");
-    if (!isSvg && !isPng && !isPpm) return false;
+    bool isTga = (ext == ".tga");
+    if (!isSvg && !isPng && !isPpm && !isTga) return false;
 
     // Build a Spec from ExportOpts.
     Spec spec;
@@ -37363,6 +37460,10 @@ bool exportColorbar(const ExportOpts& opts, const char* path) {
 #else
         return false; // PNG support compiled out
 #endif
+    }
+
+    if (isTga) {
+        return writeTGA(canvas, path);   // 32-bit RGBA
     }
 
     return writePPM(canvas, path);
