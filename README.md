@@ -79,7 +79,7 @@ int main() {
 
 ![minimal colorbar](web/example_outputs/minimal/colorbar.png)
 
-See [here](./examples/minimal_lowlevel/) for the runnable example program to generate this image.
+See [here](./examples/minimal_zerofriction/) for the runnable example program to generate this image.
 
 
 
