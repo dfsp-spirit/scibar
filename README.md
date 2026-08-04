@@ -1,5 +1,5 @@
 # scibar
-colorbars for the masses, in c++
+colorbars for the masses, in C++
 
 
 <!-- badges: start -->
