@@ -36523,6 +36523,13 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
         setCanvasColor(cv, canvas_ity::stroke_style, style.tickColor);
         cv.set_line_width(1.0f);
 
+        // canvas_ity follows the HTML5 canvas API: stroke() does NOT clear the
+        // current path. Without begin_path() here, each tick's stroke() would
+        // re-render all previously accumulated tick segments, compounding their
+        // anti-aliased coverage and making ticks appear darker/thicker than the
+        // frame border. Start a fresh path per tick to avoid this.
+        cv.begin_path();
+
         if (isVertical) {
             // Vertical: ticks to the right (or left if ticksInward), labels left-aligned
             float y = static_cast<float>(barBounds.y + barBounds.height) -
@@ -36635,6 +36642,11 @@ Rect drawSubTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style&
         }
 
         if (spec.scale.inverted) fraction = 1.0f - fraction;
+
+        // See drawTicks: stroke() does not clear the canvas_ity path, so each
+        // sub-tick must start a fresh path to avoid compounding anti-aliased
+        // coverage across sub-ticks.
+        cv.begin_path();
 
         if (isVertical) {
             float y = static_cast<float>(barBounds.y + barBounds.height) -
