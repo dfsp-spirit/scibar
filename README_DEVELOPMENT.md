@@ -43,6 +43,28 @@ In repo root:
 ```
 
 
+### Regenerating the API docs
+
+The API docs are generated with Doxygen into `docs/api/html/` (git-ignored) and deployed
+to GitHub Pages from CI (see `.github/workflows/docs.yml`).
+
+**Doxygen version requirement:** use Doxygen >= 1.10.0. Older versions (including the
+1.9.8 package shipped with Ubuntu 24.04) escape inline code spans in Markdown headings
+as literal `<tt>` text instead of rendering them (doxygen issue #10466, fixed in 1.10.0).
+The CI installs a pinned recent binary from the official Doxygen releases, so use the same
+version locally:
+
+```bash
+# e.g. from https://github.com/doxygen/doxygen/releases
+curl -sL -o /tmp/doxygen.tar.gz \
+  https://github.com/doxygen/doxygen/releases/download/Release_1_13_2/doxygen-1.13.2.linux.bin.tar.gz
+tar xzf /tmp/doxygen.tar.gz -C /tmp
+export PATH="/tmp/doxygen-1.13.2/bin:$PATH"
+doxygen --version   # should print 1.13.2
+doxygen Doxyfile    # regenerates docs/api/html/
+```
+
+
 ### Making a release
 
 * Bump version in `src/core/scibar/scibar.hpp` (see all four `#define` entries about version, like `#define SCIBAR_VERSION_MAJOR  1`)

@@ -28,7 +28,15 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install Doxygen
-        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+        run: |
+          sudo apt-get update && sudo apt-get install -y graphviz
+          # Ubuntu's doxygen package is 1.9.x, which has a bug that escapes inline
+          # code in Markdown headings as literal <tt> text (doxygen issue #10466,
+          # fixed in 1.10.0). Install a newer official binary instead.
+          curl -sL -o /tmp/doxygen.tar.gz \
+            https://github.com/doxygen/doxygen/releases/download/Release_1_13_2/doxygen-1.13.2.linux.bin.tar.gz
+          tar xzf /tmp/doxygen.tar.gz -C /tmp
+          echo "/tmp/doxygen-1.13.2/bin" >> "$GITHUB_PATH"
 
       - name: Generate C++ API docs
         run: doxygen Doxyfile
