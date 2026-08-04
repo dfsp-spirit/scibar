@@ -2,8 +2,8 @@ scibar Changes
 ==============
 
 
-Current WIP
-------------
+Version 0.2.0 -- Pixel perfect alignment and custom fonts for SVG
+-------------------------------------------------------------------
 - FIX: fix tick/colorbar border anti-aliasing mismatch in raster output
 - FIX: fix collision between colorbar label text and top-most tick label text in vertical layout (raster + vector)
 - CHG: center tick label text vertically on ticks, instead of previous behaviour that had the font baseline on the tick
