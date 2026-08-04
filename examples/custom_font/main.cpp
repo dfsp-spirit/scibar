@@ -3,6 +3,14 @@
 // with the low-level API.  This is the primary way to use a non-default
 // typeface for publication-quality output.
 //
+// Writes three outputs:
+//   1. colorbar_custom_font.png              — raster, rendered with the font
+//   2. colorbar_custom_font.svg              — SVG referencing the font family
+//      (auto-derived from the TTF); the viewer needs the font installed
+//   3. colorbar_custom_font_embedded.svg     — SVG with the font embedded as a
+//      base64 @font-face, so text is identical in @font-face-capable viewers
+//      (browsers, Inkscape) without requiring the font to be installed.
+//
 // The bundled Libertinus Serif (OFL license) is a serif font designed for
 // academic publishing — a natural complement to the embedded Inter sans-serif.
 
@@ -73,22 +81,44 @@ int main() {
         errors++;
     }
 
-    // --- Write SVG ---
+    // --- Write SVGs (referenced font + embedded font) ---
     scibar::SVGOptions svgOpts;
     svgOpts.totalWidth   = 300;
     svgOpts.totalHeight  = 600;
     svgOpts.colorbarBounds = {40, 50, 40, 500};
 
+    auto writeSvg = [](const char* path, const std::string& content) -> bool {
+        FILE* f = fopen(path, "w");
+        if (!f) return false;
+        fputs(content.c_str(), f);
+        fclose(f);
+        return true;
+    };
+
+    // (1) Referenced font: the SVG names the family (auto-derived from the TTF
+    //     name table), so the viewer must have Libertinus Serif installed or it
+    //     falls back to sans-serif.
     std::string svg = scibar::exportToSVG(spec, style, svgOpts,
                                           scibar::Orientation::Vertical);
-
-    FILE* svgFile = fopen("colorbar_custom_font.svg", "w");
-    if (svgFile) {
-        fputs(svg.c_str(), svgFile);
-        fclose(svgFile);
-        printf("Wrote colorbar_custom_font.svg\n");
+    if (writeSvg("colorbar_custom_font.svg", svg)) {
+        printf("Wrote colorbar_custom_font.svg (font referenced)\n");
     } else {
         fprintf(stderr, "Failed to write colorbar_custom_font.svg\n");
+        errors++;
+    }
+
+    // (2) Embedded font: the TTF is embedded as a base64 @font-face, so text is
+    //     pixel-identical in any @font-face-capable viewer (browsers, Inkscape)
+    //     even if the font is not installed. Not supported by librsvg.
+    scibar::Style embedStyle = style;
+    embedStyle.embedFontInSvg = true;
+    std::string svgEmbedded = scibar::exportToSVG(spec, embedStyle, svgOpts,
+                                                  scibar::Orientation::Vertical);
+    if (writeSvg("colorbar_custom_font_embedded.svg", svgEmbedded)) {
+        printf("Wrote colorbar_custom_font_embedded.svg (font embedded, ~%.0f KB)\n",
+               svgEmbedded.size() / 1024.0);
+    } else {
+        fprintf(stderr, "Failed to write colorbar_custom_font_embedded.svg\n");
         errors++;
     }
 
