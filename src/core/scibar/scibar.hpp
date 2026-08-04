@@ -36542,7 +36542,10 @@ Rect drawTicks(Canvas& canvas, Rect barBounds, const Spec& spec, const Style& st
 
             setCanvasColor(cv, canvas_ity::fill_style, style.textColor);
             cv.text_align = canvas_ity::leftward;
-            cv.text_baseline = canvas_ity::alphabetic;
+            // Vertically center tick labels on their tick marks (matplotlib-style
+            // convention) rather than aligning the alphabetic baseline, so the
+            // top label only overhangs half its height above the bar top.
+            cv.text_baseline = canvas_ity::middle;
 
             if (entry && !entry->ttfData.empty()) {
                 cv.fill_text(tick.label.c_str(),
@@ -36735,12 +36738,12 @@ LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
         layout.labelBounds = {0, labelY, canvasWidth, static_cast<int>(labelH)};
 
         // Reserve vertical space above the bar for the top tick label.
-        // The top tick sits at the bar's top edge; with baseline (alphabetic)
-        // alignment its text ascends above the bar by the font ascender, which
-        // would otherwise collide with the title label above. (If tick labels
-        // are later switched to center alignment, replace `fm.ascender` with
-        // `(fm.ascender - fm.descender) * 0.5f` here.)
-        int topTickLabelOverhang = static_cast<int>(std::ceil(fm.ascender));
+        // The top tick sits at the bar's top edge; with center-aligned tick
+        // labels (canvas_ity `middle` / SVG `central`) the text overhangs the
+        // bar top by half its height (ascender - descender)/2, which would
+        // otherwise collide with the title label above.
+        int topTickLabelOverhang = static_cast<int>(
+            std::ceil((fm.ascender - fm.descender) * 0.5f));
 
         // Bar: centered horizontally, filling most of the height
         int barWidth  = std::max(canvasWidth / 8, 30);
@@ -36949,7 +36952,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.textColor.r) << ","
                     << static_cast<int>(style.textColor.g) << ","
                     << static_cast<int>(style.textColor.b)
-                    << ")\" text-anchor=\"start\" dominant-baseline=\"alphabetic\">"
+                    << ")\" text-anchor=\"start\" dominant-baseline=\"central\">"
                     << tick.label << "</text>\n";
             } else {
                 float x = static_cast<float>(cb.x) +
