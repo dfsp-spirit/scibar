@@ -70,7 +70,7 @@ int main() {
     opts.label    = "Temperature (°C)";
     opts.colormap = cmap;  // non-owning view — cmap must outlive the export call
 
-    // One call: auto-detects format from extension (.ppm / .png / .svg)
+    // One call: auto-detects format from extension (.ppm / .png / .svg / .tga)
     exportColorbar(opts, "colorbar.png");
 
     return 0;
