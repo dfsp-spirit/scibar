@@ -36917,6 +36917,19 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
     }
 
     float range = spec.scale.max - spec.scale.min;
+
+    // Font metrics for vertically positioning tick labels. We deliberately do
+    // NOT use the `dominant-baseline` SVG attribute for tick labels: librsvg
+    // (used by the GNOME image viewer, pre-2.60) ignores it and falls back to
+    // the alphabetic baseline, shifting labels. Instead we bake the alignment
+    // offset into the y coordinate using the universally-supported default
+    // alphabetic baseline, so browsers and librsvg render identically.
+    FontMetrics fm = fontMetrics(style.font);
+    const float tickLabelHalfTextHeight =
+        (fm.ascender - fm.descender) * 0.5f; // offset to center on the tick (vertical bars)
+    const float tickLabelAscender =
+        fm.ascender;                          // offset so the text top sits at the anchor (horizontal bars)
+
     if (range > 0.0f) {
         for (const auto& tick : *ticks) {
             float fraction = 0.0f;
@@ -36946,13 +36959,17 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.tickColor.b)
                     << ")\" stroke-width=\"1\" />\n";
                 float labelX = tickStartX + style.tickLength + 3.0f;
-                svg << "  <text x=\"" << labelX << "\" y=\"" << y
+                // With the default alphabetic baseline, the text's em-box center
+                // sits halfTextHeight ABOVE the baseline, so place the baseline
+                // halfTextHeight BELOW the tick to center the label on it
+                // (matches the raster `middle` baseline).
+                svg << "  <text x=\"" << labelX << "\" y=\"" << (y + tickLabelHalfTextHeight)
                     << "\" font-family=\"" << style.fontFamily << "\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
                     << static_cast<int>(style.textColor.r) << ","
                     << static_cast<int>(style.textColor.g) << ","
                     << static_cast<int>(style.textColor.b)
-                    << ")\" text-anchor=\"start\" dominant-baseline=\"central\">"
+                    << ")\" text-anchor=\"start\">"
                     << tick.label << "</text>\n";
             } else {
                 float x = static_cast<float>(cb.x) +
@@ -36968,13 +36985,15 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                     << static_cast<int>(style.tickColor.b)
                     << ")\" stroke-width=\"1\" />\n";
                 float labelY = tickStartY + style.tickLength + 3.0f;
-                svg << "  <text x=\"" << x << "\" y=\"" << labelY
+                // Alphabetic baseline shifted down by the ascender so the text
+                // top sits at labelY (matches the raster `top` baseline).
+                svg << "  <text x=\"" << x << "\" y=\"" << (labelY + tickLabelAscender)
                     << "\" font-family=\"" << style.fontFamily << "\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
                     << static_cast<int>(style.textColor.r) << ","
                     << static_cast<int>(style.textColor.g) << ","
                     << static_cast<int>(style.textColor.b)
-                    << ")\" text-anchor=\"middle\" dominant-baseline=\"hanging\">"
+                    << ")\" text-anchor=\"middle\">"
                     << tick.label << "</text>\n";
             }
         }
