@@ -508,7 +508,8 @@ struct Style {
     Color tickColor     = Color::fromHex(0x000000FF); ///< Tick mark and label color (default: black)
     Color textColor     = Color::fromHex(0x000000FF); ///< Label and tick-label text color (default: black)
     Font  font;                    ///< Font for all raster text (nullptr = embedded Inter, 14px)
-    std::string fontFamily = "Inter, sans-serif"; ///< CSS font-family for SVG output (raster uses style.font instead)
+    std::string fontFamily = ""; ///< CSS font-family for SVG output (raster uses style.font instead).
+                                  ///< Empty = auto-derive from style.font's TTF name table (see fontFamilyName()).
 
     float tickLength         = 5.0f;  ///< Major tick mark length in pixels
     float subTickLength      = 3.0f;  ///< Sub-tick mark length in pixels (shorter than major)
@@ -897,6 +898,19 @@ std::array<float, 2> measureText(const std::string& text, const Font& font);
 ///
 /// @see FontMetrics, measureText(), Font
 FontMetrics fontMetrics(const Font& font);
+
+/// @brief Derive the font family name from a loaded font's TTF `name` table.
+///
+/// Reads name ID 1 (family) from the font's name table, decoding Unicode
+/// (UTF-16BE) entries. Returns an empty string if the name cannot be found.
+/// This is what the SVG backend uses to pick a CSS `font-family` automatically
+/// when `Style::fontFamily` is empty, so a custom font loaded via loadFont()
+/// is rendered with the correct family in SVG viewers without the user having
+/// to know the family name.
+///
+/// @param font The font (may be the embedded Inter or a loadFont() handle).
+/// @return The family name, e.g. "Inter" or "Libertinus Serif", or "" if none.
+std::string fontFamilyName(const Font& font);
 
 /// @brief Measure the horizontal advance (cursor position) up to a
 /// character index.
@@ -36045,6 +36059,82 @@ FontMetrics fontMetrics(const Font& font) {
     return m;
 }
 
+// =========================================================================
+// Font name-table access
+// =========================================================================
+
+/// @internal Decode UTF-16BE bytes (as stored in a TTF name table) to UTF-8.
+static std::string utf16BEToUtf8(const char* data, int len) {
+    std::string out;
+    int n = len / 2;
+    for (int i = 0; i < n; ++i) {
+        unsigned cp = (static_cast<unsigned char>(data[i*2]) << 8) |
+                       static_cast<unsigned char>(data[i*2+1]);
+        // Handle surrogate pairs (non-BMP chars)
+        if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < n) {
+            unsigned lo = (static_cast<unsigned char>(data[(i+1)*2]) << 8) |
+                           static_cast<unsigned char>(data[(i+1)*2+1]);
+            if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+                ++i;
+            }
+        }
+        if (cp < 0x80) {
+            out.push_back(static_cast<char>(cp));
+        } else if (cp < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+    }
+    return out;
+}
+
+/// @internal Trim leading/trailing ASCII whitespace.
+static std::string trimAscii(const std::string& s) {
+    size_t b = 0, e = s.size();
+    while (b < e && (s[b] == ' ' || s[b] == '\t' || s[b] == '\r' || s[b] == '\n')) ++b;
+    while (e > b && (s[e-1] == ' ' || s[e-1] == '\t' || s[e-1] == '\r' || s[e-1] == '\n')) --e;
+    return s.substr(b, e - b);
+}
+
+std::string fontFamilyName(const Font& font) {
+    const stbtt_fontinfo* info = getStbInfo(font);
+    if (!info) return "";
+
+    // Candidate (platformID, encodingID, languageID, nameID) tuples, most
+    // reliable first. Name ID 1 = family; ID 16 = typographic (preferred) family.
+    // Most fonts (incl. embedded Inter and Libertinus) store the family name as
+    // UTF-16BE under Microsoft/Unicode-BMP/English.
+    static const int kCombos[][4] = {
+        { 3,  1, 0x0409, 1 }, // MS / Unicode BMP / English / family
+        { 3, 10, 0x0409, 1 }, // MS / Unicode Full / English / family
+        { 0,  3, 0,      1 }, // Unicode 2.0 / family
+        { 0,  0, 0,      1 }, // Unicode 1.0 / family
+        { 1,  0, 0,      1 }, // Mac Roman / English / family
+        { 3,  1, 0x0409, 16 },// MS / Unicode BMP / English / typographic family
+    };
+
+    for (const auto& c : kCombos) {
+        int len = 0;
+        const char* s = stbtt_GetFontNameString(info, &len, c[0], c[1], c[2], c[3]);
+        if (!s || len <= 0) continue;
+        std::string name = (c[0] == 1) ? std::string(s, static_cast<size_t>(len))
+                                       : utf16BEToUtf8(s, len);
+        name = trimAscii(name);
+        if (!name.empty()) return name;
+    }
+    return "";
+}
+
 std::array<float, 2> measureText(const std::string& text, const Font& font) {
     const auto* info = getStbInfo(font);
     float scale = fontScale(font);
@@ -36930,6 +37020,19 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
     const float tickLabelAscender =
         fm.ascender;                          // offset so the text top sits at the anchor (horizontal bars)
 
+    // Resolve the CSS font-family for all <text> elements. If the user did not
+    // set Style::fontFamily explicitly, derive it from the raster font's TTF
+    // name table so a custom loadFont() family is used in SVG viewers too
+    // (falls back to "sans-serif" if the name cannot be derived).
+    std::string svgFontFamily;
+    if (!style.fontFamily.empty()) {
+        svgFontFamily = style.fontFamily;
+    } else {
+        std::string derived = fontFamilyName(style.font);
+        svgFontFamily = derived.empty() ? std::string("sans-serif")
+                                        : derived + ", sans-serif";
+    }
+
     if (range > 0.0f) {
         for (const auto& tick : *ticks) {
             float fraction = 0.0f;
@@ -36964,7 +37067,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                 // halfTextHeight BELOW the tick to center the label on it
                 // (matches the raster `middle` baseline).
                 svg << "  <text x=\"" << labelX << "\" y=\"" << (y + tickLabelHalfTextHeight)
-                    << "\" font-family=\"" << style.fontFamily << "\" font-size=\""
+                    << "\" font-family=\"" << svgFontFamily << "\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
                     << static_cast<int>(style.textColor.r) << ","
                     << static_cast<int>(style.textColor.g) << ","
@@ -36988,7 +37091,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
                 // Alphabetic baseline shifted down by the ascender so the text
                 // top sits at labelY (matches the raster `top` baseline).
                 svg << "  <text x=\"" << x << "\" y=\"" << (labelY + tickLabelAscender)
-                    << "\" font-family=\"" << style.fontFamily << "\" font-size=\""
+                    << "\" font-family=\"" << svgFontFamily << "\" font-size=\""
                     << style.font.size << "\" fill=\"rgb("
                     << static_cast<int>(style.textColor.r) << ","
                     << static_cast<int>(style.textColor.g) << ","
@@ -37068,7 +37171,7 @@ std::string exportToSVG(const Spec& spec, const Style& style, const SVGOptions& 
             labelY = isVertical ? (cb.y - 10) : (cb.y - 15);
         }
         svg << "  <text x=\"" << labelX << "\" y=\"" << labelY
-            << "\" font-family=\"" << style.fontFamily << "\" font-size=\""
+            << "\" font-family=\"" << svgFontFamily << "\" font-size=\""
             << style.font.size
             << "\" fill=\"rgb("
             << static_cast<int>(style.textColor.r) << ","
