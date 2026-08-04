@@ -31,6 +31,7 @@ Format auto-detected from file extension (`.ppm`, `.png`, `.tga`, `.svg`).
 | `style` | `defaultLight()` | Colors, font, tick sizes — [Style](@ref scibar::Style) |
 | `canvasW` | `0` (auto) | Override canvas width; auto = 200 (V) / 500 (H) |
 | `canvasH` | `0` (auto) | Override canvas height; auto = 500 (V) / 200 (H) |
+| `backgroundColor` | `{255,255,255,255}` (opaque white) | Raster background filled behind the bar. `{0,0,0,0}` = transparent (for overlays/slides; export to `.png`/`.tga` to keep alpha). Ignored by SVG. |
 
 ---
 

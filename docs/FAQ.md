@@ -346,9 +346,20 @@ exportColorbar(opts, "colorbar.svg");  // SVG  (zero-dependency vector)
 
 ### Q: How do I write a TGA with 24-bit RGB, or with a transparent background?
 
-`exportColorbar()` always fills an opaque white background and writes 32-bit
-RGBA TGA. For full control (24-bit RGB for print, or preserving a transparent
-background for slides/overlays), use the lower-level path with `writeTGA()`:
+`exportColorbar()` fills the canvas with `ExportOpts::backgroundColor`
+(opaque white by default) and writes 32-bit RGBA TGA. For a transparent
+background from the one-call API, set `backgroundColor` to `Color{0,0,0,0}`
+and export to a 32-bit format (`.tga` or `.png`):
+
+```cpp
+ExportOpts opts;
+opts.colormap      = cmap;
+opts.backgroundColor = scibar::Color{0, 0, 0, 0};  // transparent
+scibar::exportColorbar(opts, "overlay.tga");       // 32-bit, alpha kept
+```
+
+For 24-bit RGB (print), or for full control over the transparent-background
+path, use the lower-level `fillCanvas()` + `drawLegend()` + `writeTGA()`:
 
 ```cpp
 Canvas canvas{buf.data(), W, H};

@@ -2907,3 +2907,66 @@ TEST_CASE("exportColorbar TGA output", "[export][tga]") {
     REQUIRE(img.bpp == 32);
     REQUIRE((img.descriptor & 0x0F) == 8);   // alpha preserved
 }
+
+TEST_CASE("exportColorbar default background is opaque white", "[export][tga]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap = scibar::ColorMapView(testColormap());
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_tga_bg_default.tga";
+    REQUIRE(scibar::exportColorbar(opts, path.c_str()));
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+
+    // Bottom corners are untouched by the bar/label → the default background.
+    uint32_t bottomLeft  = img.pixels[static_cast<size_t>(img.height - 1) * img.width + 0];
+    uint32_t bottomRight = img.pixels[static_cast<size_t>(img.height - 1) * img.width + (img.width - 1)];
+    REQUIRE(bottomLeft  == 0xFFFFFFFFu);   // opaque white
+    REQUIRE(bottomRight == 0xFFFFFFFFu);
+}
+
+TEST_CASE("exportColorbar transparent background preserved", "[export][tga]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap        = scibar::ColorMapView(testColormap());
+    opts.backgroundColor = scibar::Color{0, 0, 0, 0};  // fully transparent
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_tga_bg_transparent.tga";
+    REQUIRE(scibar::exportColorbar(opts, path.c_str()));
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+
+    // Bottom corners must be fully transparent.
+    uint32_t bottomLeft = img.pixels[static_cast<size_t>(img.height - 1) * img.width + 0];
+    REQUIRE(((bottomLeft >> 24) & 0xFFu) == 0u);
+
+    // The colorbar itself must still be rendered (opaque pixels present).
+    bool foundOpaque = false;
+    for (uint32_t px : img.pixels) {
+        if (((px >> 24) & 0xFFu) >= 0x80u) { foundOpaque = true; break; }
+    }
+    REQUIRE(foundOpaque);
+}
+
+TEST_CASE("exportColorbar custom background color", "[export][tga]") {
+    ensureOutputDir();
+
+    scibar::ExportOpts opts;
+    opts.colormap        = scibar::ColorMapView(testColormap());
+    opts.backgroundColor = scibar::Color{255, 0, 0, 255};  // opaque red
+
+    std::string path = std::string(OUTPUT_DIR) + "/export_tga_bg_red.tga";
+    REQUIRE(scibar::exportColorbar(opts, path.c_str()));
+
+    TgaImage img;
+    REQUIRE(readTGA(path, img));
+
+    // Packed canvas format is 0xAABBGGRR → red = 0xFF0000FF.
+    uint32_t bottomLeft = img.pixels[static_cast<size_t>(img.height - 1) * img.width + 0];
+    REQUIRE((bottomLeft & 0xFFFFFFu) == 0x0000FFu);
+    REQUIRE(((bottomLeft >> 24) & 0xFFu) == 0xFFu);
+}

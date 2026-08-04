@@ -834,6 +834,23 @@ struct ExportOpts {
 
     /// @brief Canvas height in pixels. 0 = auto (500 vertical, 200 horizontal).
     int canvasH = 0;
+
+    /// @brief Raster background color filled behind the colorbar.
+    ///
+    /// Defaults to opaque white `Color{255, 255, 255, 255}`. Affects only the
+    /// raster outputs of `exportColorbar()` (`.png`, `.ppm`, `.tga`); the SVG
+    /// path is always transparent by design.
+    ///
+    /// Set to `Color{0, 0, 0, 0}` for a fully transparent background — ideal
+    /// for overlaying colorbars on slides/presentations. Combine with TGA or
+    /// PNG (32-bit) output to preserve the alpha channel:
+    /// @code
+    /// opts.backgroundColor = scibar::Color{0, 0, 0, 0};  // transparent
+    /// scibar::exportColorbar(opts, "overlay.tga");       // 32-bit, alpha kept
+    /// @endcode
+    ///
+    /// @see exportColorbar(), writeTGA()
+    Color backgroundColor{255, 255, 255, 255};
 };
 
 // =========================================================================
@@ -1470,9 +1487,11 @@ bool writeTGA(const Canvas& canvas, const char* path, bool use24bit = false);
 /// | `.tga` | TGA (uncompressed 32-bit RGBA) | Built-in (custom) | Raw pixels, no gamma/color metadata; print/slide friendly |
 /// | `.svg` | SVG (vector) | Built-in | Publication-quality vector graphics |
 ///
-/// Note: `.tga` is always written as 32-bit RGBA here (the canvas is filled
-/// with an opaque background by default). For 24-bit RGB output, or to
-/// preserve a transparent background, use the lower-level `fillCanvas()` +
+/// Raster output fills the canvas with `ExportOpts::backgroundColor`
+/// (opaque white by default) before drawing. Set it to
+/// `Color{0,0,0,0}` for a transparent background, and export to `.png` or
+/// `.tga` to keep the alpha channel (e.g. for slides/overlays).
+/// For 24-bit RGB TGA output, use the lower-level `fillCanvas()` +
 /// `drawLegend()` + `writeTGA()` path directly.
 ///
 /// Canvas size auto-detects from `ExportOpts::orientation`: vertical defaults
@@ -37450,7 +37469,7 @@ bool exportColorbar(const ExportOpts& opts, const char* path) {
     // Raster path — allocate canvas and render
     std::vector<uint32_t> buf(cw * ch);
     Canvas canvas{buf.data(), cw, ch};
-    fillCanvas(canvas, Color{255, 255, 255, 255});
+    fillCanvas(canvas, opts.backgroundColor);
 
     drawLegend(canvas, spec, opts.style, opts.orientation);
 
