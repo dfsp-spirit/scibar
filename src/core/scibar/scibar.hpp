@@ -36942,17 +36942,36 @@ LegendLayout computeLegendLayout(int canvasWidth, int canvasHeight,
         // Bar: centered horizontally, filling most of the height
         int barWidth  = std::max(canvasWidth / 8, 30);
         int barX = (canvasWidth - barWidth) / 2;
-        int barY = labelY + static_cast<int>(labelH) + margin / 2 + topTickLabelOverhang;
-        int barHeight = canvasHeight - barY - margin / 2;
+
+        // Reserve a bit more whitespace above and below the bar than the bare
+        // minimum, so the title label and the bottom tick label (whose
+        // descenders, e.g. "g", hang below the bar) get breathing room instead
+        // of crowding the canvas edge. Font-anchored, like the horizontal ends.
+        const int vPad = std::max(margin / 2, static_cast<int>(
+            std::ceil(style.font.size * 1.2f)));
+
+        int barY = labelY + static_cast<int>(labelH) + vPad + topTickLabelOverhang;
+        int barHeight = canvasHeight - barY - vPad;
         layout.barBounds = {barX, barY, barWidth, barHeight};
     } else {
         // Horizontal: label above, bar below, both centered
         int labelY = margin;
         layout.labelBounds = {0, labelY, canvasWidth, static_cast<int>(labelH)};
 
+        // Reserve space on each horizontal end for the outermost tick labels.
+        // The first and last ticks sit at the bar's ends, and their labels are
+        // centered on those ticks, so each end needs about half the width of
+        // the widest tick label to avoid clipping at the canvas edge. We
+        // approximate that from the font size (roughly covers 4-5 characters,
+        // e.g. "1000" or "22.35") instead of measuring glyphs — scibar is not
+        // a layout engine. Pathologically long labels are the caller's
+        // responsibility (widen the canvas or shrink the font).
+        const int endReserve = std::max(margin, static_cast<int>(
+            std::ceil(style.font.size * 1.4f)));
+
         int barThick = std::max(canvasHeight / 8, 20);
-        int barLen   = canvasWidth - 2 * margin;
-        int barX = margin;
+        int barLen   = canvasWidth - 2 * endReserve;
+        int barX = endReserve;
         int barY = labelY + static_cast<int>(labelH) + margin / 2;
         layout.barBounds = {barX, barY, barLen, barThick};
     }

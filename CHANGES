@@ -8,6 +8,15 @@ Current WIP
 - NEW: add TGA export option in raster pathway
 - NEW: add example with superscript, thanks to inter font capabilities
 - DOC: clarify UTF-8, math, superscript etc capabilities/support in FAQ
+- NEW: add zero_friction_high_res example demonstrating high-resolution output
+  from the zero-friction API (set only the long side of the canvas, or both,
+  in ExportOpts) for both PNG and SVG
+- FIX: reserve space at the horizontal ends of the colorbar for the outer tick
+  labels, so scaled-up fonts no longer clip the first/last label at the canvas
+  edge (font-size-anchored; applies to raster and SVG identically)
+- FIX: add font-anchored breathing room above and below vertical colorbars, so
+  the title label and the bottom tick label's descenders no longer crowd the
+  canvas edge at larger font sizes
 
 
 Version 0.2.0 -- Pixel perfect alignment and custom fonts for SVG
