@@ -56,10 +56,11 @@ version locally:
 
 ```bash
 # e.g. from https://github.com/doxygen/doxygen/releases
+LOCAL_INSTALL_PATH="/tmp" # the parent dir, must exist
 curl -sL -o /tmp/doxygen.tar.gz \
   https://github.com/doxygen/doxygen/releases/download/Release_1_13_2/doxygen-1.13.2.linux.bin.tar.gz
-tar xzf /tmp/doxygen.tar.gz -C /tmp
-export PATH="/tmp/doxygen-1.13.2/bin:$PATH"
+tar xzf /tmp/doxygen.tar.gz -C $LOCAL_INSTALL_PATH
+export PATH="$LOCAL_INSTALL_PATH/doxygen-1.13.2/bin:$PATH"
 doxygen --version   # should print 1.13.2
 doxygen Doxyfile    # regenerates docs/api/html/
 ```
