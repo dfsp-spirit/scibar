@@ -457,7 +457,7 @@ Please note that we will not re-implement the general-purpose functionality of S
 
 ## R Bindings
 
-### Q: Scimesh has an R wrapper, why not make scibar available in R as well via an Rcpp wrapper?
+### Q: The Scimesh sister project has an R wrapper, why not make scibar available in R as well via an Rcpp wrapper?
 
 Good question — but the two cases are not comparable, and a scibar R wrapper
 would add little.
