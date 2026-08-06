@@ -454,3 +454,37 @@ sudo apt install chromium-browser
 ```
 
 Please note that we will not re-implement the general-purpose functionality of SVG to PDF conversion in scibar, as that is clearly out of scope.
+
+## R Bindings
+
+### Q: Scimesh has an R wrapper, why not make scibar available in R as well via an Rcpp wrapper?
+
+Good question — but the two cases are not comparable, and a scibar R wrapper
+would add little.
+
+1. **R already has this, natively.** `grid` + `scales` (log/diverging breaks,
+   reversed axes, label formatting) + `farver`/`scico` (which even ships vik)
+   + `svglite`/`ragg` cover scibar's feature list. The result is a composable
+   `grid` object ("grob") — resolution-independent, and something R users can
+   extract, re-arrange, and re-render like any native R graphic.
+
+2. **Different output model.** scibar is an *exporter*: it writes pixel files
+   (PPM/PNG/TGA) or a standalone SVG. R's plotting model is *object retention*:
+   you build a grob, then render it to any device at any size later. A wrapper
+   would hand back pixels/standalone files that cannot be post-processed or
+   composed with R's own tools (`patchwork`, `cowplot`, `ggplotGrob`).
+
+3. **Why scimesh is different.** scimesh was wrapped because R genuinely cannot
+   do that job well: headless, software 3D mesh rendering at arbitrary
+   resolution (rgl needs X11/GPU and is capped by screen resolution). Colorbars
+   are pure 2D drawing — exactly R's native strength. The gap that justified
+   the scimesh wrapper does not exist for scibar.
+
+4. **scibar's differentiators don't translate.** Zero-dependency, embedded font,
+   PPM/TGA are C++-ecosystem concerns that don't exist inside R (grDevices is
+   always present; png/pdf/svg devices handle output).
+
+The only scenario where a wrapper would make sense is if bit-exact parity with
+the C++ scibar output were ever a hard requirement. It's cheap to add later
+(scibar writes files itself), so there's no lock-in — but it is not the right
+default for R.
