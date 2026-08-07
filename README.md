@@ -42,9 +42,9 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 
 Rather than forcing a full layout framework on you, we offer three API levels:
 
-- **Zero-friction:** `exportColorbar()` — one call: choose a colormap, pick a filename, done. Auto-detects format from extension (`.ppm`, `.png`, `.svg`).
-- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — single call, auto-layout, sensible defaults, full control over the canvas buffer.
-- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — full manual control over placement and geometry.
+- **Zero-friction:** `exportColorbar()` — One call to produce a raster or vector image file: choose a colormap, pick a filename, done. Auto-detects file format from extension (`.ppm`/`.png`/`.tga`, `.svg`). Sensible defaults, some customization options.
+- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — Full control over the canvas buffer, one call to draw a colorbar into it or export an SVG based on its dimensions. Sensible defaults, more customization options.
+- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — Full manual control over the Canvas buffer, the placement and the geometry of individual colorbar elements like the bar itself, ticks, subticks, and labels.
 
 
 ## Documentation
