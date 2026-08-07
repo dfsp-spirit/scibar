@@ -3,6 +3,7 @@ colorbars for the masses, in C++
 
 
 <!-- badges: start -->
+  [![DOI](https://zenodo.org/badge/1304877869.svg)](https://doi.org/10.5281/zenodo.21791458)
   [![tests_cpp](https://github.com/dfsp-spirit/scibar/actions/workflows/unittests.yml/badge.svg?branch=main)](https://github.com/dfsp-spirit/scibar/actions)
   [![examples_cpp](https://github.com/dfsp-spirit/scibar/actions/workflows/examples.yml/badge.svg?branch=main)](https://github.com/dfsp-spirit/scibar/actions)
   [![Docs](https://github.com/dfsp-spirit/scibar/actions/workflows/docs.yml/badge.svg?branch=main)](https://dfsp-spirit.github.io/scibar/)
