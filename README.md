@@ -40,11 +40,11 @@ While **scibar** was designed as the companion colorbar engine for [scimesh](htt
 
 **scibar is not a layout engine.**
 
-Rather than forcing a full layout framework on you, we offer three API levels:
+Rather than forcing a full layout framework on you, we offer three distinct API levels:
 
-- **Zero-friction:** `exportColorbar()` — One call to produce a raster or vector image file: choose a colormap, pick a filename, done. Auto-detects file format from extension (`.ppm`/`.png`/`.tga`, `.svg`). Sensible defaults, some customization options.
-- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — Full control over the canvas buffer, one call to draw a colorbar into it or export an SVG based on its dimensions. Sensible defaults, more customization options.
-- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — Full manual control over the Canvas buffer, the placement and the geometry of individual colorbar elements like the bar itself, ticks, subticks, and labels.
+- **Zero-friction:** `exportColorbar()` — One function call to produce a raster or vector file. Pick a colormap, specify a filename, and you're done. File formats (`.png`, `.ppm`, `.tga`, `.svg`) are auto-detected from the extension, backed by sensible defaults and basic customization.
+- **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — Full control over your target canvas buffer, drawing a complete colorbar or SVG in a single call based on the buffer's dimensions.
+- **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — Total manual control over layout and placement. Independently position individual components like the bar, ticks, subticks, and text labels.
 
 Direct canvas manipulation also makes it easy to compose hybrid graphics—for instance, embedding a high-resolution raster mesh into a scalable SVG colorbar layout (see [hybrid example](./examples/hybrid_figure/)).
 
