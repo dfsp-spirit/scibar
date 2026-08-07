@@ -46,6 +46,7 @@ Rather than forcing a full layout framework on you, we offer three API levels:
 - **High-level:** `drawLegend()` (raster) / `exportLegendToSVG()` (vector) — Full control over the canvas buffer, one call to draw a colorbar into it or export an SVG based on its dimensions. Sensible defaults, more customization options.
 - **Low-level:** `drawColorBar()` / `drawTicks()` / `drawSubTicks()` / `drawLabel()` (raster) and `exportToSVG()` (vector) — Full manual control over the Canvas buffer, the placement and the geometry of individual colorbar elements like the bar itself, ticks, subticks, and labels.
 
+Direct canvas manipulation also makes it easy to compose hybrid graphics—for instance, embedding a high-resolution raster mesh into a scalable SVG colorbar layout (see [hybrid example](./examples/hybrid_figure/)).
 
 ## Documentation
 
