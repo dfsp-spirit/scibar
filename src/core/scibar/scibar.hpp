@@ -65,10 +65,10 @@
 // Version
 // =========================================================================
 
-#define SCIBAR_VERSION        "0.2.0"
+#define SCIBAR_VERSION        "0.2.1"
 #define SCIBAR_VERSION_MAJOR  0
 #define SCIBAR_VERSION_MINOR  2
-#define SCIBAR_VERSION_PATCH  0
+#define SCIBAR_VERSION_PATCH  1
 
 #include <string>
 #include <vector>
